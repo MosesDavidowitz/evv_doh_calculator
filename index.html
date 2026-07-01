@@ -11,8 +11,8 @@
 *{box-sizing:border-box}html,body{max-width:100%;overflow-x:hidden}
 body{margin:0;background:linear-gradient(135deg,#eef4ff,#f8fafc 45%,#eefdf8);font-family:Arial,sans-serif;color:var(--text)}
 .wrap{max-width:1240px;margin:0 auto;padding:28px}
-.hero{background:linear-gradient(135deg,#0f3b8f,#0f766e);color:white;border-radius:24px;padding:26px;box-shadow:var(--shadow);display:flex;justify-content:space-between;gap:20px;align-items:center}
-.hero h1{margin:0;font-size:30px}.hero p{margin:8px 0 0;color:#dbeafe;max-width:720px}
+.hero{background:linear-gradient(135deg,#0f3b8f,#0f766e);color:white;border-radius:24px;padding:26px 30px;box-shadow:var(--shadow)}
+.hero h1{margin:0;font-size:30px}.hero p{margin:8px 0 0;color:#dbeafe;max-width:720px}.heroLinks{margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.textLink,.privacyLink{border:0;background:transparent;color:#e0f2fe;padding:0;font-size:14px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.privacyLink{color:#ccfbf1}.dot{color:rgba(255,255,255,.55)}
 .badge{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:8px 12px;font-size:13px;white-space:nowrap}
 .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-top:18px}.full{grid-column:1/-1}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;min-width:0}
@@ -33,12 +33,22 @@ th{background:#0f172a;color:white;text-align:left;padding:11px;font-size:12px;ve
 pre{background:#0f172a;color:#e5e7eb;border-radius:14px;padding:12px;white-space:pre-wrap;overflow:auto;font-size:12px;max-width:100%;word-break:break-word;overflow-wrap:anywhere}
 .errbox{max-width:100%;overflow:hidden}.errbox pre{max-height:260px}.footer{color:var(--muted);text-align:center;font-size:13px;margin:22px 0 0}
 .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}.modalbox{background:white;border-radius:22px;max-width:560px;width:100%;padding:22px;box-shadow:0 30px 70px rgba(0,0,0,.25)}.modalbox h3{margin:0 0 10px}.modalbox p{color:var(--muted);line-height:1.45}.close{float:right;border:0;background:#f1f5f9;border-radius:10px;padding:8px 10px;cursor:pointer}
-@media(max-width:900px){.grid,.formgrid,.stats{grid-template-columns:1fr}.hero{display:block}.badge{display:inline-block;margin-top:14px}.wrap{padding:14px}.hero h1{font-size:24px}}
+@media(max-width:900px){.grid,.formgrid,.stats{grid-template-columns:1fr}.wrap{padding:14px}.hero{padding:22px}.hero h1{font-size:24px}.hero p{font-size:15px}}
 </style>
 </head>
 <body>
 <div class="wrap">
-<section class="hero"><div><h1>EVV DOH Reporting Calculator</h1><p>Complete DOH EVV reporting values from HHAeXchange exports. Enter provider details, select the reporting month, upload the three source files, and generate the submission rows.</p></div><div class="badge">Browser-only · Files stay local</div></section>
+<section class="hero">
+  <div class="heroContent">
+    <h1>DOH EVV Compliance Reporting Tool</h1>
+    <p>Generate monthly EVV compliance submission rows from HHAeXchange reports.</p>
+    <div class="heroLinks">
+      <button class="textLink" type="button" onclick="openInfoModal()">See details</button>
+      <span class="dot">•</span>
+      <button class="privacyLink" type="button" onclick="openPrivacyModal()">Browser-only · Files stay local</button>
+    </div>
+  </div>
+</section>
 <div class="grid">
 <div class="card full"><h2>Report Settings</h2><p class="sub">These settings are used only for filtering and calculations. Provider identifiers can be filled directly in the DOH template.</p><div class="formgrid">
 <div class="field"><label>Contract Name in HHAx <button class="help" data-help="contract">?</button></label><input id="contractName" placeholder="Village Care Max"></div>
@@ -65,6 +75,17 @@ eligibility:["Eligibility CSV","This file is used only to determine the product,
 };
 document.querySelectorAll(".help").forEach(b=>b.addEventListener("click",e=>{e.preventDefault();const h=helpText[b.dataset.help];modalTitle.textContent=h[0];modalText.textContent=h[1];modal.style.display="flex"}));
 function closeModal(){modal.style.display="none"}
+function openInfoModal(){
+  modalTitle.textContent = "About This EVV Reporting Requirement";
+  modalText.innerHTML = "New York State now requires MLTC plans to report EVV compliance metrics to the Department of Health. Plans may request monthly data from contracted providers so they can complete their DOH submissions.<br><br>The purpose is to measure how many EVV-applicable services have a matching EVV record, the related compliance percentage, and the dollar amounts tied to those services.<br><br>This tool uses three HHAeXchange reports: Billing Visits for paid visits and dollars, EVV Compliance Detail for exception visits, and Eligibility for the product split such as MLTCP or MAP.<br><br>It then calculates the DOH submission values: total EVV-applicable services, matching EVV records, non-compliant services, compliance rate, total dollars, and matching EVV dollars.";
+  modal.style.display = "flex";
+}
+function openPrivacyModal(){
+  modalTitle.textContent = "Privacy and PHI Handling";
+  modalText.innerHTML = "This tool runs directly in your browser. The files you select are read locally on your computer and are not uploaded to a server by this page.<br><br>Because EVV and eligibility reports may contain PHI, use this tool only on a trusted computer and do not share downloaded reports unnecessarily.<br><br>Refreshing or closing the page clears the loaded report data from the page. Basic settings such as contract name and reporting month may be saved in your browser storage for convenience.";
+  modal.style.display = "flex";
+}
+
 ["contractName","evvType","reportMonth","reportYear"].forEach(id=>{const el=document.getElementById(id);const saved=localStorage.getItem("evv_"+id);if(saved)el.value=saved;el.addEventListener("change",()=>localStorage.setItem("evv_"+id,el.value));el.addEventListener("input",()=>localStorage.setItem("evv_"+id,el.value));});
 function norm(v){return String(v||"").trim().toLowerCase().replace(/\s+/g," ")}
 function compact(v){return norm(v).replace(/[^a-z0-9]/g,"")}
