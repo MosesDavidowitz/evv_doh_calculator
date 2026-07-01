@@ -63,7 +63,7 @@ pre{background:#0f172a;color:#e5e7eb;border-radius:14px;padding:12px;white-space
 <button class="primary" id="generateBtn" type="button">Generate Submission Rows</button></div>
 <div class="card"><h2>Validation Summary</h2><div id="messages"><p class="sub">Upload the files and click Generate.</p></div></div>
 <div class="card full"><h2>DOH Submission Rows</h2><p class="sub">Upload the files and click Generate to see the results.</p><div id="result"></div></div>
-</div><p class="footer">A Davidowitz Project &copy; 2025 · v26<br>Questions about this tool? <a class="contact-link" href="mailto:Moses@BenevolentHomeCare.com?subject=EVV%20Compliance%20Reporting%20Tool%20Support">Click here to contact support</a></p></div>
+</div><p class="footer">A Davidowitz Project &copy; 2025 · v27<br>Questions about this tool? <a class="contact-link" href="mailto:Moses@BenevolentHomeCare.com?subject=EVV%20Compliance%20Reporting%20Tool%20Support">Click here</a></p></div>
 <div class="modal" id="modal"><div class="modalbox"><button class="close" onclick="closeModal()">Close</button><h3 id="modalTitle"></h3><p id="modalText"></p></div></div>
 <script>
 const helpText={
@@ -100,6 +100,16 @@ function namePartsKey(v){
   const parts = cleaned.split(" ").filter(p => p && p.length > 1);
   return [...new Set(parts)].sort().join("|");
 }
+function nameNoInitialsKey(v){
+  const cleaned = String(v||"")
+    .toUpperCase()
+    .replace(/[^A-Z\s]/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+  if(!cleaned) return "";
+  const parts = cleaned.split(" ").filter(p => p && p.length > 1);
+  return parts.sort().join("|");
+}
 function addUnique(map, key, value){
   if(!key) return;
   if(map[key] === undefined) map[key] = value;
@@ -117,10 +127,16 @@ function looksLikePersonNameText(v){
 }
 function eligibilityNameKeys(row, primaryNameCol){
   const keys = new Set();
-  if(primaryNameCol && row[primaryNameCol]) keys.add(namePartsKey(row[primaryNameCol]));
+  if(primaryNameCol && row[primaryNameCol]){
+    keys.add(namePartsKey(row[primaryNameCol]));
+    keys.add(nameNoInitialsKey(row[primaryNameCol]));
+  }
   Object.keys(row).forEach(k=>{
     const val = row[k];
-    if(looksLikePersonNameText(val)) keys.add(namePartsKey(val));
+    if(looksLikePersonNameText(val)){
+      keys.add(namePartsKey(val));
+      keys.add(nameNoInitialsKey(val));
+    }
   });
   return Array.from(keys).filter(Boolean);
 }
@@ -180,6 +196,8 @@ evv.forEach(r=>{
   const parts=namePartsKey(evvName?r[evvName]:"");
   if(name&&date){exByNameDate.add(name+"|"+date);evvRowsUsed++}
   if(parts&&date)exByNamePartsDate.add(parts+"|"+date);
+  const noInitParts=nameNoInitialsKey(evvName?r[evvName]:"");
+  if(noInitParts&&date)exByNamePartsDate.add(noInitParts+"|"+date);
 });const totals={},unmatched=new Set(),badClaimKeys={},processed=[];function ensure(p){if(!totals[p])totals[p]={H:0,K:0,L:0,M:0,excludedClaimDollars:0}}let outsideMonth=0,billingRowsUsed=0;billing.forEach(r=>{const name=norm(r[billName]),date=cleanDate(r[billDate]);if(!name||!date)return;billingRowsUsed++;if(!isSelectedMonth(date))outsideMonth++;const med=billMedicaid?cleanId(r[billMedicaid]):"",inv=billInv?cleanId(r[billInv]):"";let product="";
 const pMed = med ? productByMedicaid[med] : "";
 if(pMed && pMed!=="__AMBIGUOUS__") product=pMed;
@@ -191,9 +209,13 @@ if(!product){
   const p2=productByNameParts[namePartsKey(r[billName])];
   if(p2 && p2!=="__AMBIGUOUS__") product=p2;
 }
+if(!product){
+  const p3=productByNameParts[nameNoInitialsKey(r[billName])];
+  if(p3 && p3!=="__AMBIGUOUS__") product=p3;
+}
 if(!product){product="MLTCP";unmatched.add(r[billName]+(med?" ("+med+")":""))}
 const amount=Number(String(r[billAmt]||"0").replace(/[$,]/g,""))||0;
-const non=exByNameDate.has(name+"|"+date) || exByNamePartsDate.has(namePartsKey(r[billName])+"|"+date);ensure(product);totals[product].H++;totals[product].L+=amount;if(non){totals[product].K++;if(inv)badClaimKeys[product+"|"+inv+"|"+date]=true}processed.push({product,date,inv,amount})});processed.forEach(v=>{if(v.inv&&badClaimKeys[v.product+"|"+v.inv+"|"+v.date])totals[v.product].excludedClaimDollars+=v.amount});Object.keys(totals).forEach(p=>totals[p].M=totals[p].L-totals[p].excludedClaimDollars);let rows="";["MLTCP","MAP"].forEach(p=>{const t=totals[p]||{H:0,K:0,L:0,M:0};const I=t.H-t.K,J=t.H?I/t.H:0;rows+=`<tr><td>${p}</td><td>${evvType.value}</td><td class="num">${t.H}</td><td class="num">${I}</td><td class="num">${(J*100).toFixed(2)}%</td><td class="num">${t.K}</td><td class="num">${money(t.L)}</td><td class="num">${money(t.M)}</td></tr>`});messages.innerHTML=`<div class="stats"><div class="stat"><b>${billingRowsUsed}</b><span>Billing rows</span></div><div class="stat"><b>${evvRowsUsed}</b><span>EVV exceptions used</span></div><div class="stat"><b>${evvRowsSkippedContract}</b><span>Other-contract EVV rows skipped</span></div><div class="stat"><b>${unmatched.size}</b><span>Unmatched patients</span></div></div><p class="${outsideMonth?'warn':'good'}">Billing rows outside selected month: ${outsideMonth}</p>${unmatched.size?`<details class="reviewBox"><summary>Review Required: ${unmatched.size} unmatched patient${unmatched.size===1?"":"s"} defaulted to MLTCP</summary><pre>${Array.from(unmatched).slice(0,100).join("\n")}</pre></details>`:""}<p class="sub">EVV sheet used: ${evv.__sheetName}, header row ${evv.__headerIndex}. EVV exceptions match by patient name + visit date, with a fallback that ignores middle initials and word order when needed. Column M excludes full invoice/date claims touched by an exception.</p>`;result.innerHTML=`<p class="sub">Scroll sideways inside the table if needed.</p><div class="tablewrap"><table><tr><th>Column C<br>MC Plan / Product</th><th>Column G<br>EVV Service Type</th><th>Column H<br>Count of EVV-Applicable Services</th><th>Column I<br>Count With Matching EVV Record</th><th>Column J<br>EVV Compliance Rate</th><th>Column K<br>Count of Non-Compliant Services</th><th>Column L<br>Total EVV-Applicable Dollars</th><th>Column M<br>Total Dollars With Matching EVV Record</th></tr>${rows}</table></div>`}catch(err){messages.innerHTML="<div class='errbox'><p class='err'>Error: "+err.message+"</p><pre>"+String(err.stack||"").replace(/https?:\/\/[^\s)]+/g,"[script location hidden]")+"</pre></div>"}}
+const non=exByNameDate.has(name+"|"+date) || exByNamePartsDate.has(namePartsKey(r[billName])+"|"+date) || exByNamePartsDate.has(nameNoInitialsKey(r[billName])+"|"+date);ensure(product);totals[product].H++;totals[product].L+=amount;if(non){totals[product].K++;if(inv)badClaimKeys[product+"|"+inv+"|"+date]=true}processed.push({product,date,inv,amount})});processed.forEach(v=>{if(v.inv&&badClaimKeys[v.product+"|"+v.inv+"|"+v.date])totals[v.product].excludedClaimDollars+=v.amount});Object.keys(totals).forEach(p=>totals[p].M=totals[p].L-totals[p].excludedClaimDollars);let rows="";["MLTCP","MAP"].forEach(p=>{const t=totals[p]||{H:0,K:0,L:0,M:0};const I=t.H-t.K,J=t.H?I/t.H:0;rows+=`<tr><td>${p}</td><td>${evvType.value}</td><td class="num">${t.H}</td><td class="num">${I}</td><td class="num">${(J*100).toFixed(2)}%</td><td class="num">${t.K}</td><td class="num">${money(t.L)}</td><td class="num">${money(t.M)}</td></tr>`});messages.innerHTML=`<div class="stats"><div class="stat"><b>${billingRowsUsed}</b><span>Billing rows</span></div><div class="stat"><b>${evvRowsUsed}</b><span>EVV exceptions used</span></div><div class="stat"><b>${evvRowsSkippedContract}</b><span>Other-contract EVV rows skipped</span></div><div class="stat"><b>${unmatched.size}</b><span>Unmatched patients</span></div></div><p class="${outsideMonth?'warn':'good'}">Billing rows outside selected month: ${outsideMonth}</p>${unmatched.size?`<details class="reviewBox"><summary>Review Required: ${unmatched.size} unmatched patient${unmatched.size===1?"":"s"} defaulted to MLTCP</summary><pre>${Array.from(unmatched).slice(0,100).join("\n")}</pre></details>`:""}<p class="sub">EVV sheet used: ${evv.__sheetName}, header row ${evv.__headerIndex}. EVV exceptions match by patient name + visit date, with a fallback that removes single-letter initials and ignores word order when needed. Column M excludes full invoice/date claims touched by an exception.</p>`;result.innerHTML=`<p class="sub">Scroll sideways inside the table if needed.</p><div class="tablewrap"><table><tr><th>Column C<br>MC Plan / Product</th><th>Column G<br>EVV Service Type</th><th>Column H<br>Count of EVV-Applicable Services</th><th>Column I<br>Count With Matching EVV Record</th><th>Column J<br>EVV Compliance Rate</th><th>Column K<br>Count of Non-Compliant Services</th><th>Column L<br>Total EVV-Applicable Dollars</th><th>Column M<br>Total Dollars With Matching EVV Record</th></tr>${rows}</table></div>`}catch(err){messages.innerHTML="<div class='errbox'><p class='err'>Error: "+err.message+"</p><pre>"+String(err.stack||"").replace(/https?:\/\/[^\s)]+/g,"[script location hidden]")+"</pre></div>"}}
 generateBtn.addEventListener("click",runCalc);
 </script>
 </body>
