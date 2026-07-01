@@ -63,7 +63,7 @@ pre{background:#0f172a;color:#e5e7eb;border-radius:14px;padding:12px;white-space
 <button class="primary" id="generateBtn" type="button">Generate Submission Rows</button></div>
 <div class="card"><h2>Validation Summary</h2><div id="messages"><p class="sub">Upload the files and click Generate.</p></div></div>
 <div class="card full"><h2>DOH Submission Rows</h2><p class="sub">Upload the files and click Generate to see the results.</p><div id="result"></div></div>
-</div><p class="footer">Questions about using this tool? Contact Moses@BenevolentHomeCare.com</p></div>
+</div><p class="footer">Questions about using this tool? Contact Moses@BenevolentHomeCare.com<br><span style="font-size:11px;color:#94a3b8">Version: v23 smart-name-field-scan</span></p></div>
 <div class="modal" id="modal"><div class="modalbox"><button class="close" onclick="closeModal()">Close</button><h3 id="modalTitle"></h3><p id="modalText"></p></div></div>
 <script>
 const helpText={
@@ -105,6 +105,25 @@ function addUnique(map, key, value){
   if(map[key] === undefined) map[key] = value;
   else if(map[key] !== value) map[key] = "__AMBIGUOUS__";
 }
+function looksLikePersonNameText(v){
+  const s = String(v||"").trim();
+  if(!s) return false;
+  if(/\d/.test(s)) return false;
+  const parts = s.split(/\s+/).filter(Boolean);
+  if(parts.length < 2 || parts.length > 5) return false;
+  const upper = s.toUpperCase();
+  if(upper.includes("VILLAGE") || upper.includes("MAP") || upper.includes("LTC") || upper.includes("MEDICAID") || upper.includes("PARTIAL")) return false;
+  return true;
+}
+function eligibilityNameKeys(row, primaryNameCol){
+  const keys = new Set();
+  if(primaryNameCol && row[primaryNameCol]) keys.add(namePartsKey(row[primaryNameCol]));
+  Object.keys(row).forEach(k=>{
+    const val = row[k];
+    if(looksLikePersonNameText(val)) keys.add(namePartsKey(val));
+  });
+  return Array.from(keys).filter(Boolean);
+}
 function money(v){return Number(v||0).toLocaleString(undefined,{style:"currency",currency:"USD"})}
 function cleanDate(v){if(v===null||v===undefined||v==="")return "";if(typeof v==="number"){const d=XLSX.SSF.parse_date_code(v);if(!d)return "";return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`}if(v instanceof Date&&!isNaN(v))return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;const s=String(v).trim();const d=new Date(s);if(!isNaN(d))return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;if(/^\d{1,2}\/\d{1,2}\/\d{4}/.test(s)){const p=s.split(/[\/\s]/);return `${p[2]}-${String(p[0]).padStart(2,"0")}-${String(p[1]).padStart(2,"0")}`}return s.slice(0,10)}
 function col(row,names){const keys=Object.keys(row||{});for(const name of names){let hit=keys.find(k=>norm(k)===norm(name));if(hit)return hit}for(const name of names){let hit=keys.find(k=>compact(k)===compact(name));if(hit)return hit}for(const name of names){let hit=keys.find(k=>norm(k).includes(norm(name)));if(hit)return hit}return null}
@@ -118,11 +137,14 @@ async function runCalc(){try{if(typeof Papa==="undefined"||typeof XLSX==="undefi
 elig.forEach(r=>{
   const product=productFromEligibilityRow(r);
   if(!product)return;
+
   if(eligName&&norm(r[eligName])){
     const exactName=norm(r[eligName]);
     productByName[exactName]=product;
-    addUnique(productByNameParts, namePartsKey(r[eligName]), product);
   }
+
+  eligibilityNameKeys(r, eligName).forEach(k=>addUnique(productByNameParts, k, product));
+
   if(eligMedicaid&&cleanId(r[eligMedicaid]))productByMedicaid[cleanId(r[eligMedicaid])]=product;
 });const exByNameDate=new Set(), exByNamePartsDate=new Set();
 let evvRowsUsed=0,evvRowsSkippedContract=0;
@@ -141,7 +163,7 @@ if(!product){
   const p2=productByNameParts[namePartsKey(r[billName])];
   if(p2 && p2!=="__AMBIGUOUS__") product=p2;
 }
-if(!product){product="MLTCP";unmatched.add(r[billName]+(med?" ("+med+")":""))}
+if(!product){product="MLTCP";unmatched.add(r[billName]+(med?" ("+med+")":"")+" | key: "+namePartsKey(r[billName]))}
 const amount=Number(String(r[billAmt]||"0").replace(/[$,]/g,""))||0;
 const non=exByNameDate.has(name+"|"+date) || exByNamePartsDate.has(namePartsKey(r[billName])+"|"+date);ensure(product);totals[product].H++;totals[product].L+=amount;if(non){totals[product].K++;if(inv)badClaimKeys[product+"|"+inv+"|"+date]=true}processed.push({product,date,inv,amount})});processed.forEach(v=>{if(v.inv&&badClaimKeys[v.product+"|"+v.inv+"|"+v.date])totals[v.product].excludedClaimDollars+=v.amount});Object.keys(totals).forEach(p=>totals[p].M=totals[p].L-totals[p].excludedClaimDollars);let rows="";["MLTCP","MAP"].forEach(p=>{const t=totals[p]||{H:0,K:0,L:0,M:0};const I=t.H-t.K,J=t.H?I/t.H:0;rows+=`<tr><td>${p}</td><td>${evvType.value}</td><td class="num">${t.H}</td><td class="num">${I}</td><td class="num">${(J*100).toFixed(2)}%</td><td class="num">${t.K}</td><td class="num">${money(t.L)}</td><td class="num">${money(t.M)}</td></tr>`});messages.innerHTML=`<div class="stats"><div class="stat"><b>${billingRowsUsed}</b><span>Billing rows</span></div><div class="stat"><b>${evvRowsUsed}</b><span>EVV exceptions used</span></div><div class="stat"><b>${evvRowsSkippedContract}</b><span>Other-contract EVV rows skipped</span></div><div class="stat"><b>${unmatched.size}</b><span>Unmatched patients</span></div></div><p class="${outsideMonth?'warn':'good'}">Billing rows outside selected month: ${outsideMonth}</p>${unmatched.size?`<details class="reviewBox"><summary>Review Required: ${unmatched.size} unmatched patient${unmatched.size===1?"":"s"} defaulted to MLTCP</summary><pre>${Array.from(unmatched).slice(0,100).join("\n")}</pre></details>`:""}<p class="sub">EVV sheet used: ${evv.__sheetName}, header row ${evv.__headerIndex}. EVV exceptions match by patient name + visit date, with a fallback that ignores middle initials and word order when needed. Column M excludes full invoice/date claims touched by an exception.</p>`;result.innerHTML=`<p class="sub">Scroll sideways inside the table if needed.</p><div class="tablewrap"><table><tr><th>Column C<br>MC Plan / Product</th><th>Column G<br>EVV Service Type</th><th>Column H<br>Count of EVV-Applicable Services</th><th>Column I<br>Count With Matching EVV Record</th><th>Column J<br>EVV Compliance Rate</th><th>Column K<br>Count of Non-Compliant Services</th><th>Column L<br>Total EVV-Applicable Dollars</th><th>Column M<br>Total Dollars With Matching EVV Record</th></tr>${rows}</table></div>`}catch(err){messages.innerHTML="<div class='errbox'><p class='err'>Error: "+err.message+"</p><pre>"+String(err.stack||"").replace(/https?:\/\/[^\s)]+/g,"[script location hidden]")+"</pre></div>"}}
 generateBtn.addEventListener("click",runCalc);
