@@ -6,7 +6,7 @@
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
-body{font-family:Arial,sans-serif;max-width:1150px;margin:20px auto;padding:20px}
+body{font-family:Arial,sans-serif;max-width:1180px;margin:20px auto;padding:20px}
 .card{border:1px solid #ddd;padding:14px;border-radius:8px;margin:14px 0}
 label{display:block;margin:10px 0}
 input,select{padding:6px;margin-left:6px}
@@ -15,11 +15,12 @@ table{border-collapse:collapse;width:100%;margin-top:18px}
 th,td{border:1px solid #ccc;padding:8px;text-align:right}
 th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
 .good{color:#0a7a0a}.warn{color:#a15c00}.err{color:#b00020;font-weight:bold}
-pre{background:#f7f7f7;padding:10px;overflow:auto;white-space:pre-wrap}
+pre{background:#f7f7f7;padding:10px;overflow:auto;white-space:pre-wrap;font-size:12px}
+.small{font-size:12px;color:#555}
 </style>
 </head>
 <body>
-<h2>EVV DOH Reporting Calculator v4</h2>
+<h2>EVV DOH Reporting Calculator v5</h2>
 <p>Browser-only prototype. Your files stay on your computer.</p>
 
 <div class="card">
@@ -47,6 +48,7 @@ pre{background:#f7f7f7;padding:10px;overflow:auto;white-space:pre-wrap}
 <script>
 function norm(v){return String(v||"").trim().toLowerCase().replace(/\s+/g," ")}
 function compact(v){return norm(v).replace(/[^a-z0-9]/g,"")}
+function cleanId(v){return String(v||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"")}
 function money(v){return Number(v||0).toLocaleString(undefined,{style:"currency",currency:"USD"})}
 function cleanDate(v){
   if(v===null||v===undefined||v==="")return "";
@@ -54,7 +56,7 @@ function cleanDate(v){
   if(v instanceof Date&&!isNaN(v))return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;
   const s=String(v).trim(); const d=new Date(s);
   if(!isNaN(d))return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){const [m,d,y]=s.split("/");return `${y}-${m}-${d}`}
+  if(/^\d{1,2}\/\d{1,2}\/\d{4}/.test(s)){const parts=s.split(/[\/\s]/); return `${parts[2]}-${String(parts[0]).padStart(2,"0")}-${String(parts[1]).padStart(2,"0")}`}
   return s.slice(0,10)
 }
 function show(html){document.getElementById("messages").innerHTML=html}
@@ -71,20 +73,21 @@ function parseCSV(file){
 async function parseExcelBestSheet(file){
   const buf=await file.arrayBuffer()
   const wb=XLSX.read(buf,{type:"array",cellDates:true})
-  let best={score:-1,rows:null,sheet:"",headerIndex:0}
+  let best={score:-1,sheet:wb.SheetNames[0],headerIndex:0}
   for(const sheetName of wb.SheetNames){
     const ws=wb.Sheets[sheetName]
     const matrix=XLSX.utils.sheet_to_json(ws,{header:1,defval:""})
     for(let i=0;i<Math.min(matrix.length,50);i++){
       const joined=matrix[i].map(x=>norm(x)).join("|")
       let score=0
-      if(joined.includes("patient"))score+=3
-      if(joined.includes("visit date"))score+=3
-      if(joined.includes("admission id"))score+=2
-      if(joined.includes("contract"))score+=2
-      if(joined.includes("evv exception"))score+=2
-      if(joined.includes("invoice number"))score+=1
-      if(score>best.score)best={score,rows:matrix,sheet:sheetName,headerIndex:i}
+      if(joined.includes("patient name"))score+=5
+      if(joined.includes("visit date"))score+=5
+      if(joined.includes("admission id"))score+=4
+      if(joined.includes("contract"))score+=3
+      if(joined.includes("evv exception"))score+=3
+      if(joined.includes("invoice number"))score+=2
+      if(sheetName.toLowerCase().includes("detail"))score+=2
+      if(score>best.score)best={score,sheet:sheetName,headerIndex:i}
     }
   }
   const ws=wb.Sheets[best.sheet]
@@ -93,11 +96,16 @@ async function parseExcelBestSheet(file){
   data.__headerIndex=best.headerIndex+1
   return data
 }
-function periodOk(dateStr){
+function isSelectedMonth(dateStr){
   const d=new Date(dateStr+"T00:00:00")
-  const m=Number(document.getElementById("reportMonth").value)
-  const y=Number(document.getElementById("reportYear").value)
+  const m=Number(reportMonth.value), y=Number(reportYear.value)
   return d.getFullYear()===y && (d.getMonth()+1)===m
+}
+function productFromPlan(planRaw){
+  const p=String(planRaw||"").toUpperCase()
+  if(p.includes("MAP") || p.includes("MEDICAID ADVANTAGE PLUS")) return "MAP"
+  if(p.includes("PARTIAL") || p.includes("MLTC") || p.includes("LTC")) return "MLTCP"
+  return ""
 }
 async function runCalc(){
  try{
@@ -112,72 +120,78 @@ async function runCalc(){
 
   const b0=billing[0], e0=evv[0], g0=elig[0]
   const billName=col(b0,["Patient Name","Patient"])
+  const billMedicaid=col(b0,["Medicaid Number","Medicaid ID"])
   const billDate=col(b0,["Visit Date"])
   const billAmt=col(b0,["Total Amount","Paid Amount"])
   const billAdm=col(b0,["Admission ID"])
   const billInv=col(b0,["Invoice Number"])
-  const eligName=col(g0,["Patient Name","Member Name","Name"])
-  const eligPlan=col(g0,["Plan Name","Insurance Plan Name","Payer Name","Benefit Plan","Contract"])
+  const eligName=col(g0,["Patient Name","Member Name","Client Name","Name"])
+  const eligMedicaid=col(g0,["Medicaid Number","Medicaid ID"])
+  const eligPlan=col(g0,["Insurance Plan Name 1","Plan Name","Insurance Plan Name","Payer Name","Benefit Plan","Contract Name"])
   const evvName=col(e0,["Patient Name","Patient","Consumer Name","Member Name","Client Name","Name"])
   const evvDate=col(e0,["Visit Date","Date of Service","Service Date","Date"])
   const evvAdm=col(e0,["Admission ID"])
+  const evvInv=col(e0,["Invoice Number"])
   const evvContract=col(e0,["Contract","Primary Bill To"])
   const missing=[]
   if(!billName)missing.push("Billing: Patient Name")
   if(!billDate)missing.push("Billing: Visit Date")
   if(!billAmt)missing.push("Billing: Total Amount")
-  if(!eligName)missing.push("Eligibility: Patient Name")
-  if(!eligPlan)missing.push("Eligibility: Plan Name")
-  if(!evvName)missing.push("EVV: Patient Name")
+  if(!eligPlan)missing.push("Eligibility: Plan/Insurance Plan Name")
   if(!evvDate)missing.push("EVV: Visit Date")
-  if(missing.length)throw new Error("Could not identify these columns: "+missing.join(", ")+"\n\nEVV sheet used: "+evv.__sheetName+", header row: "+evv.__headerIndex+"\nEVV columns found: "+Object.keys(e0).join(", "))
+  if(!evvName && !evvAdm)missing.push("EVV: Patient Name or Admission ID")
+  if(missing.length)throw new Error("Could not identify: "+missing.join(", ")+"\n\nEVV sheet used: "+evv.__sheetName+", header row: "+evv.__headerIndex+"\nEVV columns found: "+Object.keys(e0).join(", "))
+
+  const productByName={}, productByMedicaid={}
+  elig.forEach(r=>{
+    const product=productFromPlan(r[eligPlan])
+    if(!product)return
+    if(eligName && norm(r[eligName])) productByName[norm(r[eligName])]=product
+    if(eligMedicaid && cleanId(r[eligMedicaid])) productByMedicaid[cleanId(r[eligMedicaid])]=product
+  })
 
   const contractWanted=norm(contractName.value)
-  const productByName={}, productByAdm={}
-  elig.forEach(r=>{
-    const name=norm(r[eligName])
-    const plan=String(r[eligPlan]||"").toUpperCase()
-    if(!name)return
-    productByName[name]=plan.includes("MAP") ? "MAP" : "MLTCP"
-  })
-
-  const exceptionsByNameDate=new Set()
-  const exceptionsByAdmDate=new Set()
-  let evvRowsUsed=0
+  const exByAdmDate=new Set(), exByNameDate=new Set(), exByInvDate=new Set()
+  let evvRowsUsed=0, evvRowsSkippedContract=0
   evv.forEach(r=>{
-    if(evvContract && contractWanted && norm(r[evvContract])!==contractWanted)return
-    const name=norm(r[evvName])
+    if(evvContract && contractWanted && norm(r[evvContract])!==contractWanted){evvRowsSkippedContract++; return}
     const date=cleanDate(r[evvDate])
-    const adm=evvAdm ? norm(r[evvAdm]) : ""
-    if(name&&date){exceptionsByNameDate.add(name+"|"+date); evvRowsUsed++}
-    if(adm&&date)exceptionsByAdmDate.add(adm+"|"+date)
+    if(!date)return
+    const adm=evvAdm ? cleanId(r[evvAdm]) : ""
+    const name=evvName ? norm(r[evvName]) : ""
+    const inv=evvInv ? cleanId(r[evvInv]) : ""
+    if(adm) exByAdmDate.add(adm+"|"+date)
+    if(name) exByNameDate.add(name+"|"+date)
+    if(inv) exByInvDate.add(inv+"|"+date)
+    evvRowsUsed++
   })
 
-  const totals={}, unmatched=new Set(), badInvoiceDate={}
+  const totals={}, unmatched=new Set(), badClaimKeys={}
+  const processed=[]
   function ensure(p){if(!totals[p])totals[p]={H:0,K:0,L:0,M:0,excludedClaimDollars:0}}
-  const billingProcessed=[]
-  let outsideMonth=0
+  let outsideMonth=0, billingRowsUsed=0
   billing.forEach(r=>{
-    const name=norm(r[billName]), date=cleanDate(r[billDate])
+    const name=norm(r[billName])
+    const date=cleanDate(r[billDate])
     if(!name||!date)return
-    if(!periodOk(date))outsideMonth++
-    const adm=billAdm ? norm(r[billAdm]) : ""
-    let product=productByName[name]
-    if(!product){product="MLTCP"; unmatched.add(r[billName])}
+    billingRowsUsed++
+    if(!isSelectedMonth(date))outsideMonth++
+    const med=billMedicaid ? cleanId(r[billMedicaid]) : ""
+    const adm=billAdm ? cleanId(r[billAdm]) : ""
+    const inv=billInv ? cleanId(r[billInv]) : ""
+    let product=(med && productByMedicaid[med]) || productByName[name]
+    if(!product){product="MLTCP"; unmatched.add(r[billName] + (med ? " ("+med+")" : ""))}
     const amount=Number(String(r[billAmt]||"0").replace(/[$,]/g,""))||0
-    const non=exceptionsByNameDate.has(name+"|"+date) || (adm && exceptionsByAdmDate.has(adm+"|"+date))
-    const inv=billInv ? String(r[billInv]||"").trim() : ""
-    const claimKey=product+"|"+inv+"|"+date
+    const non=(adm && exByAdmDate.has(adm+"|"+date)) || (inv && exByInvDate.has(inv+"|"+date)) || exByNameDate.has(name+"|"+date)
     ensure(product)
     totals[product].H++
     totals[product].L+=amount
-    if(non){totals[product].K++; if(inv)badInvoiceDate[claimKey]=true}
-    billingProcessed.push({product,date,inv,amount,non})
+    if(non){totals[product].K++; if(inv)badClaimKeys[product+"|"+inv+"|"+date]=true}
+    processed.push({product,date,inv,amount,non})
   })
 
-  billingProcessed.forEach(v=>{
-    const claimKey=v.product+"|"+v.inv+"|"+v.date
-    if(v.inv && badInvoiceDate[claimKey]) totals[v.product].excludedClaimDollars += v.amount
+  processed.forEach(v=>{
+    if(v.inv && badClaimKeys[v.product+"|"+v.inv+"|"+v.date]) totals[v.product].excludedClaimDollars += v.amount
   })
   Object.keys(totals).forEach(p=>{totals[p].M=totals[p].L-totals[p].excludedClaimDollars})
 
@@ -189,14 +203,15 @@ async function runCalc(){
   table+="</table>"
 
   show(`<p class="good">Done.</p>
-        <p>Billing rows read: ${billing.length}</p>
+        <p>Billing rows used: ${billingRowsUsed}</p>
         <p>EVV sheet used: ${evv.__sheetName}, header row ${evv.__headerIndex}</p>
         <p>EVV exception rows used for this contract: ${evvRowsUsed}</p>
+        <p>EVV rows skipped due to other contracts: ${evvRowsSkippedContract}</p>
         <p>Eligibility rows read: ${elig.length}</p>
         <p class="${outsideMonth?'warn':'good'}">Billing rows outside selected month: ${outsideMonth}</p>
         <p class="warn">Unmatched billing patients defaulted to MLTCP: ${unmatched.size}</p>
-        ${unmatched.size ? "<pre>"+Array.from(unmatched).slice(0,80).join("\\n")+"</pre>" : ""}
-        <p class="warn">Prototype note: Column M uses invoice number + visit date claim-level exclusion when invoice number is available.</p>`)
+        ${unmatched.size ? "<pre>"+Array.from(unmatched).slice(0,100).join("\\n")+"</pre>" : ""}
+        <p class="small">Product matching priority: Medicaid Number first, then Patient Name. Exception matching priority: Admission ID + Visit Date, then Invoice Number + Visit Date, then Patient Name + Visit Date. Column M excludes the full invoice/date claim when any row on that claim is non-compliant.</p>`)
   result.innerHTML=table
  }catch(err){
   show("<p class='err'>Error: "+err.message+"</p><pre>"+(err.stack||"")+"</pre>")
