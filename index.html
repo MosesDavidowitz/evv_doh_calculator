@@ -2,222 +2,101 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>EVV DOH Reporting Calculator</title>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
-body{font-family:Arial,sans-serif;max-width:1180px;margin:20px auto;padding:20px}
-.card{border:1px solid #ddd;padding:14px;border-radius:8px;margin:14px 0}
-label{display:block;margin:10px 0}
-input,select{padding:6px;margin-left:6px}
-button{padding:10px 16px;cursor:pointer}
-table{border-collapse:collapse;width:100%;margin-top:18px}
-th,td{border:1px solid #ccc;padding:8px;text-align:right}
+:root{--bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#637083;--line:#dfe5ef;--brand:#1d4ed8;--brand2:#0f766e;--warn:#b45309;--err:#b91c1c;--good:#15803d;--shadow:0 12px 32px rgba(15,23,42,.08);--radius:18px}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(135deg,#eef4ff,#f8fafc 45%,#eefdf8);font-family:Arial,sans-serif;color:var(--text)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px}
+.hero{background:linear-gradient(135deg,#0f3b8f,#0f766e);color:white;border-radius:24px;padding:26px;box-shadow:var(--shadow);display:flex;justify-content:space-between;gap:20px;align-items:center}
+.hero h1{margin:0;font-size:30px}.hero p{margin:8px 0 0;color:#dbeafe}
+.badge{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:8px 12px;font-size:13px;white-space:nowrap}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.card h2{font-size:18px;margin:0 0 14px}.sub{color:var(--muted);font-size:13px;margin-top:-8px;margin-bottom:16px}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field label{display:flex;align-items:center;gap:7px;font-weight:700;font-size:13px;margin-bottom:6px}
+input,select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--text)}
+.filebox{border:1px dashed #b9c5d8;border-radius:16px;padding:15px;background:#f8fafc;margin:12px 0}
+.filetop{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.filetitle{font-weight:800}.filedesc{font-size:13px;color:var(--muted);margin:6px 0 12px}
+.help{border:0;background:#eef2ff;color:#1d4ed8;border-radius:999px;width:28px;height:28px;font-weight:900;cursor:pointer}
+.primary{border:0;background:linear-gradient(135deg,var(--brand),var(--brand2));color:white;border-radius:14px;padding:13px 18px;font-weight:800;cursor:pointer;width:100%;font-size:15px}
+.full{grid-column:1/-1}
+.good{color:var(--good)}.warn{color:var(--warn)}.err{color:var(--err);font-weight:bold}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+.stat{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px}.stat b{font-size:22px}.stat span{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+table{border-collapse:separate;border-spacing:0;width:100%;overflow:hidden;border:1px solid var(--line);border-radius:16px;background:white;box-shadow:var(--shadow);margin-top:18px}
+th{background:#0f172a;color:white;text-align:right;padding:12px;font-size:13px}td{border-top:1px solid var(--line);padding:12px;text-align:right}
 th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
-.good{color:#0a7a0a}.warn{color:#a15c00}.err{color:#b00020;font-weight:bold}
-pre{background:#f7f7f7;padding:10px;overflow:auto;white-space:pre-wrap;font-size:12px}
-.small{font-size:12px;color:#555}
+pre{background:#0f172a;color:#e5e7eb;border-radius:14px;padding:12px;white-space:pre-wrap;overflow:auto;font-size:12px}
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
+.modalbox{background:white;border-radius:22px;max-width:560px;width:100%;padding:22px;box-shadow:0 30px 70px rgba(0,0,0,.25)}
+.modalbox h3{margin:0 0 10px}.modalbox p{color:var(--muted);line-height:1.45}.close{float:right;border:0;background:#f1f5f9;border-radius:10px;padding:8px 10px;cursor:pointer}
+@media(max-width:850px){.grid,.formgrid,.stats{grid-template-columns:1fr}.hero{display:block}.badge{display:inline-block;margin-top:14px}.wrap{padding:16px}th,td{font-size:12px;padding:8px}}
 </style>
 </head>
 <body>
-<h2>EVV DOH Reporting Calculator v5</h2>
-<p>Browser-only prototype. Your files stay on your computer.</p>
+<div class="wrap">
+<section class="hero"><div><h1>EVV DOH Reporting Calculator</h1><p>Upload HHAeXchange exports, calculate DOH reporting values, and prepare payer-ready numbers.</p></div><div class="badge">Browser-only · Files stay local</div></section>
+
+<div class="grid">
+<div class="card">
+<h2>Report Setup</h2><p class="sub">These values are saved in your browser and reused next time.</p>
+<div class="formgrid">
+<div class="field"><label>Contract Name <button class="help" data-help="contract">?</button></label><input id="contractName" placeholder="Village Care Max"></div>
+<div class="field"><label>MC Plan Name <button class="help" data-help="plan">?</button></label><input id="mcPlanName" placeholder="VillageCareMAX"></div>
+<div class="field"><label>Provider Name <button class="help" data-help="provider">?</button></label><input id="providerName" placeholder="Benevolent Home Care"></div>
+<div class="field"><label>NPI <button class="help" data-help="npi">?</button></label><input id="npi" placeholder="1659080158"></div>
+<div class="field"><label>MMIS Provider ID <button class="help" data-help="mmis">?</button></label><input id="mmis" placeholder="Optional"></div>
+<div class="field"><label>EVV Type <button class="help" data-help="evvtype">?</button></label><select id="evvType"><option>PC</option><option>HHC</option><option>CDPAS</option></select></div>
+<div class="field"><label>Reporting Month</label><select id="reportMonth"><option value="1">January</option><option value="2">February</option><option value="3">March</option><option value="4">April</option><option value="5">May</option><option value="6">June</option><option value="7">July</option><option value="8">August</option><option value="9">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option></select></div>
+<div class="field"><label>Reporting Year</label><input id="reportYear" type="number" value="2026"></div>
+</div></div>
 
 <div class="card">
-<label>Contract Name <input id="contractName" value="Village Care Max"></label>
-<label>Reporting Month
-<select id="reportMonth">
-<option value="1">January</option><option value="2">February</option><option value="3">March</option>
-<option value="4" selected>April</option><option value="5">May</option><option value="6">June</option>
-<option value="7">July</option><option value="8">August</option><option value="9">September</option>
-<option value="10">October</option><option value="11">November</option><option value="12">December</option>
-</select></label>
-<label>Reporting Year <input id="reportYear" value="2026"></label>
+<h2>Upload Files</h2><p class="sub">Use the same month and contract across all reports.</p>
+<div class="filebox"><div class="filetop"><div class="filetitle">1. Billing Visits CSV</div><button class="help" data-help="billing">?</button></div><div class="filedesc">Reporting Tool 2.0 export with paid visits, dates, dollars, invoice numbers, and Medicaid IDs.</div><input type="file" id="billingFile" accept=".csv"></div>
+<div class="filebox"><div class="filetop"><div class="filetitle">2. EVV Compliance Detail Excel</div><button class="help" data-help="exceptions">?</button></div><div class="filedesc">EVV exception report. Matched rows are treated as non-compliant.</div><input type="file" id="evvFile" accept=".xlsx,.xls"></div>
+<div class="filebox"><div class="filetop"><div class="filetitle">3. Eligibility CSV</div><button class="help" data-help="eligibility">?</button></div><div class="filedesc">Used to split members into MLTCP or MAP using Medicaid ID first, then patient name.</div><input type="file" id="eligFile" accept=".csv"></div>
+<button class="primary" id="generateBtn" type="button">Generate DOH Numbers</button>
+</div>
+<div class="card full"><h2>Results</h2><div id="messages"><p class="sub">Upload the files and click Generate.</p></div><div id="result"></div></div>
+</div>
 </div>
 
-<div class="card">
-<label>1. Billing Visits CSV <input type="file" id="billingFile" accept=".csv"></label>
-<label>2. EVV Compliance Detail Excel <input type="file" id="evvFile" accept=".xlsx,.xls"></label>
-<label>3. Eligibility CSV <input type="file" id="eligFile" accept=".csv"></label>
-<button id="generateBtn" type="button">Generate DOH Numbers</button>
-</div>
-
-<div id="messages"></div>
-<div id="result"></div>
+<div class="modal" id="modal"><div class="modalbox"><button class="close" onclick="closeModal()">Close</button><h3 id="modalTitle"></h3><p id="modalText"></p></div></div>
 
 <script>
+const helpText={
+contract:["Contract Name","Use the exact HHAeXchange contract/payer name used in the reports, for example Village Care Max. The calculator uses this to filter EVV exceptions to the correct payer."],
+plan:["MC Plan Name","This is the plan name that will appear on the DOH template, for example VillageCareMAX."],
+provider:["Provider Name","Your agency/provider name for the DOH submission file."],
+npi:["NPI","Your 10-digit National Provider Identifier. This can be saved locally in your browser for next time."],
+mmis:["MMIS Provider ID","Optional for some managed care submissions. Use it only when you know the correct eMedNY/MMIS provider ID for that contract/program."],
+evvtype:["EVV Type","For LHCSA personal care, use PC. HHC is usually CHHA, and CDPAS is for CDPAP/FI services."],
+billing:["Billing Visits CSV","This is the main source of truth. It should be the Reporting Tool 2.0 Billing Visits CSV filtered by Visit Date, Primary Bill To/Contract, and Paid = Yes."],
+exceptions:["EVV Compliance Detail Excel","This report lists EVV exceptions. The calculator matches these exceptions back to the paid billing visits and marks those visits as non-compliant."],
+eligibility:["Eligibility CSV","This is only used to identify product type, such as MLTCP or MAP. The calculator matches by Medicaid number first, then patient name."]
+};
+document.querySelectorAll(".help").forEach(b=>b.addEventListener("click",e=>{e.preventDefault();const h=helpText[b.dataset.help];document.getElementById("modalTitle").textContent=h[0];document.getElementById("modalText").textContent=h[1];document.getElementById("modal").style.display="flex"}));
+function closeModal(){document.getElementById("modal").style.display="none"}
+["contractName","mcPlanName","providerName","npi","mmis","evvType","reportMonth","reportYear"].forEach(id=>{const el=document.getElementById(id);const saved=localStorage.getItem("evv_"+id);if(saved)el.value=saved;el.addEventListener("change",()=>localStorage.setItem("evv_"+id,el.value));el.addEventListener("input",()=>localStorage.setItem("evv_"+id,el.value));});
 function norm(v){return String(v||"").trim().toLowerCase().replace(/\s+/g," ")}
 function compact(v){return norm(v).replace(/[^a-z0-9]/g,"")}
 function cleanId(v){return String(v||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"")}
 function money(v){return Number(v||0).toLocaleString(undefined,{style:"currency",currency:"USD"})}
-function cleanDate(v){
-  if(v===null||v===undefined||v==="")return "";
-  if(typeof v==="number"){const d=XLSX.SSF.parse_date_code(v); if(!d)return ""; return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`}
-  if(v instanceof Date&&!isNaN(v))return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;
-  const s=String(v).trim(); const d=new Date(s);
-  if(!isNaN(d))return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  if(/^\d{1,2}\/\d{1,2}\/\d{4}/.test(s)){const parts=s.split(/[\/\s]/); return `${parts[2]}-${String(parts[0]).padStart(2,"0")}-${String(parts[1]).padStart(2,"0")}`}
-  return s.slice(0,10)
-}
-function show(html){document.getElementById("messages").innerHTML=html}
-function col(row,names){
-  const keys=Object.keys(row||{})
-  for(const name of names){let hit=keys.find(k=>norm(k)===norm(name)); if(hit)return hit}
-  for(const name of names){let hit=keys.find(k=>compact(k)===compact(name)); if(hit)return hit}
-  for(const name of names){let hit=keys.find(k=>norm(k).includes(norm(name))); if(hit)return hit}
-  return null
-}
-function parseCSV(file){
-  return new Promise((resolve,reject)=>Papa.parse(file,{header:true,skipEmptyLines:true,complete:r=>resolve(r.data),error:reject}))
-}
-async function parseExcelBestSheet(file){
-  const buf=await file.arrayBuffer()
-  const wb=XLSX.read(buf,{type:"array",cellDates:true})
-  let best={score:-1,sheet:wb.SheetNames[0],headerIndex:0}
-  for(const sheetName of wb.SheetNames){
-    const ws=wb.Sheets[sheetName]
-    const matrix=XLSX.utils.sheet_to_json(ws,{header:1,defval:""})
-    for(let i=0;i<Math.min(matrix.length,50);i++){
-      const joined=matrix[i].map(x=>norm(x)).join("|")
-      let score=0
-      if(joined.includes("patient name"))score+=5
-      if(joined.includes("visit date"))score+=5
-      if(joined.includes("admission id"))score+=4
-      if(joined.includes("contract"))score+=3
-      if(joined.includes("evv exception"))score+=3
-      if(joined.includes("invoice number"))score+=2
-      if(sheetName.toLowerCase().includes("detail"))score+=2
-      if(score>best.score)best={score,sheet:sheetName,headerIndex:i}
-    }
-  }
-  const ws=wb.Sheets[best.sheet]
-  const data=XLSX.utils.sheet_to_json(ws,{range:best.headerIndex,defval:""})
-  data.__sheetName=best.sheet
-  data.__headerIndex=best.headerIndex+1
-  return data
-}
-function isSelectedMonth(dateStr){
-  const d=new Date(dateStr+"T00:00:00")
-  const m=Number(reportMonth.value), y=Number(reportYear.value)
-  return d.getFullYear()===y && (d.getMonth()+1)===m
-}
-function productFromPlan(planRaw){
-  const p=String(planRaw||"").toUpperCase()
-  if(p.includes("MAP") || p.includes("MEDICAID ADVANTAGE PLUS")) return "MAP"
-  if(p.includes("PARTIAL") || p.includes("MLTC") || p.includes("LTC")) return "MLTCP"
-  return ""
-}
-async function runCalc(){
- try{
-  if(typeof Papa==="undefined"||typeof XLSX==="undefined")throw new Error("Required browser libraries did not load. Check internet/CDN access.")
-  const bf=billingFile.files[0], ef=evvFile.files[0], gf=eligFile.files[0]
-  if(!bf||!ef||!gf)throw new Error("Upload all three files first.")
-  show("<p class='good'>Reading files...</p>")
-  const billing=await parseCSV(bf)
-  const evv=await parseExcelBestSheet(ef)
-  const elig=await parseCSV(gf)
-  if(!billing.length||!evv.length||!elig.length)throw new Error("One uploaded file appears empty.")
-
-  const b0=billing[0], e0=evv[0], g0=elig[0]
-  const billName=col(b0,["Patient Name","Patient"])
-  const billMedicaid=col(b0,["Medicaid Number","Medicaid ID"])
-  const billDate=col(b0,["Visit Date"])
-  const billAmt=col(b0,["Total Amount","Paid Amount"])
-  const billAdm=col(b0,["Admission ID"])
-  const billInv=col(b0,["Invoice Number"])
-  const eligName=col(g0,["Patient Name","Member Name","Client Name","Name"])
-  const eligMedicaid=col(g0,["Medicaid Number","Medicaid ID"])
-  const eligPlan=col(g0,["Insurance Plan Name 1","Plan Name","Insurance Plan Name","Payer Name","Benefit Plan","Contract Name"])
-  const evvName=col(e0,["Patient Name","Patient","Consumer Name","Member Name","Client Name","Name"])
-  const evvDate=col(e0,["Visit Date","Date of Service","Service Date","Date"])
-  const evvAdm=col(e0,["Admission ID"])
-  const evvInv=col(e0,["Invoice Number"])
-  const evvContract=col(e0,["Contract","Primary Bill To"])
-  const missing=[]
-  if(!billName)missing.push("Billing: Patient Name")
-  if(!billDate)missing.push("Billing: Visit Date")
-  if(!billAmt)missing.push("Billing: Total Amount")
-  if(!eligPlan)missing.push("Eligibility: Plan/Insurance Plan Name")
-  if(!evvDate)missing.push("EVV: Visit Date")
-  if(!evvName && !evvAdm)missing.push("EVV: Patient Name or Admission ID")
-  if(missing.length)throw new Error("Could not identify: "+missing.join(", ")+"\n\nEVV sheet used: "+evv.__sheetName+", header row: "+evv.__headerIndex+"\nEVV columns found: "+Object.keys(e0).join(", "))
-
-  const productByName={}, productByMedicaid={}
-  elig.forEach(r=>{
-    const product=productFromPlan(r[eligPlan])
-    if(!product)return
-    if(eligName && norm(r[eligName])) productByName[norm(r[eligName])]=product
-    if(eligMedicaid && cleanId(r[eligMedicaid])) productByMedicaid[cleanId(r[eligMedicaid])]=product
-  })
-
-  const contractWanted=norm(contractName.value)
-  const exByAdmDate=new Set(), exByNameDate=new Set(), exByInvDate=new Set()
-  let evvRowsUsed=0, evvRowsSkippedContract=0
-  evv.forEach(r=>{
-    if(evvContract && contractWanted && norm(r[evvContract])!==contractWanted){evvRowsSkippedContract++; return}
-    const date=cleanDate(r[evvDate])
-    if(!date)return
-    const adm=evvAdm ? cleanId(r[evvAdm]) : ""
-    const name=evvName ? norm(r[evvName]) : ""
-    const inv=evvInv ? cleanId(r[evvInv]) : ""
-    if(adm) exByAdmDate.add(adm+"|"+date)
-    if(name) exByNameDate.add(name+"|"+date)
-    if(inv) exByInvDate.add(inv+"|"+date)
-    evvRowsUsed++
-  })
-
-  const totals={}, unmatched=new Set(), badClaimKeys={}
-  const processed=[]
-  function ensure(p){if(!totals[p])totals[p]={H:0,K:0,L:0,M:0,excludedClaimDollars:0}}
-  let outsideMonth=0, billingRowsUsed=0
-  billing.forEach(r=>{
-    const name=norm(r[billName])
-    const date=cleanDate(r[billDate])
-    if(!name||!date)return
-    billingRowsUsed++
-    if(!isSelectedMonth(date))outsideMonth++
-    const med=billMedicaid ? cleanId(r[billMedicaid]) : ""
-    const adm=billAdm ? cleanId(r[billAdm]) : ""
-    const inv=billInv ? cleanId(r[billInv]) : ""
-    let product=(med && productByMedicaid[med]) || productByName[name]
-    if(!product){product="MLTCP"; unmatched.add(r[billName] + (med ? " ("+med+")" : ""))}
-    const amount=Number(String(r[billAmt]||"0").replace(/[$,]/g,""))||0
-    const non=(adm && exByAdmDate.has(adm+"|"+date)) || (inv && exByInvDate.has(inv+"|"+date)) || exByNameDate.has(name+"|"+date)
-    ensure(product)
-    totals[product].H++
-    totals[product].L+=amount
-    if(non){totals[product].K++; if(inv)badClaimKeys[product+"|"+inv+"|"+date]=true}
-    processed.push({product,date,inv,amount,non})
-  })
-
-  processed.forEach(v=>{
-    if(v.inv && badClaimKeys[v.product+"|"+v.inv+"|"+v.date]) totals[v.product].excludedClaimDollars += v.amount
-  })
-  Object.keys(totals).forEach(p=>{totals[p].M=totals[p].L-totals[p].excludedClaimDollars})
-
-  let table="<table><tr><th>Product</th><th>EVV Type</th><th>H Services</th><th>I Matching</th><th>J Rate</th><th>K Non-Compliant</th><th>L Total Dollars</th><th>M Matching Dollars</th></tr>"
-  Object.keys(totals).sort().forEach(p=>{
-    const t=totals[p], I=t.H-t.K, J=t.H?I/t.H:0
-    table+=`<tr><td>${p}</td><td>PC</td><td>${t.H}</td><td>${I}</td><td>${(J*100).toFixed(2)}%</td><td>${t.K}</td><td>${money(t.L)}</td><td>${money(t.M)}</td></tr>`
-  })
-  table+="</table>"
-
-  show(`<p class="good">Done.</p>
-        <p>Billing rows used: ${billingRowsUsed}</p>
-        <p>EVV sheet used: ${evv.__sheetName}, header row ${evv.__headerIndex}</p>
-        <p>EVV exception rows used for this contract: ${evvRowsUsed}</p>
-        <p>EVV rows skipped due to other contracts: ${evvRowsSkippedContract}</p>
-        <p>Eligibility rows read: ${elig.length}</p>
-        <p class="${outsideMonth?'warn':'good'}">Billing rows outside selected month: ${outsideMonth}</p>
-        <p class="warn">Unmatched billing patients defaulted to MLTCP: ${unmatched.size}</p>
-        ${unmatched.size ? "<pre>"+Array.from(unmatched).slice(0,100).join("\\n")+"</pre>" : ""}
-        <p class="small">Product matching priority: Medicaid Number first, then Patient Name. Exception matching priority: Admission ID + Visit Date, then Invoice Number + Visit Date, then Patient Name + Visit Date. Column M excludes the full invoice/date claim when any row on that claim is non-compliant.</p>`)
-  result.innerHTML=table
- }catch(err){
-  show("<p class='err'>Error: "+err.message+"</p><pre>"+(err.stack||"")+"</pre>")
- }
-}
-generateBtn.addEventListener("click",runCalc)
+function cleanDate(v){if(v===null||v===undefined||v==="")return "";if(typeof v==="number"){const d=XLSX.SSF.parse_date_code(v);if(!d)return "";return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`}if(v instanceof Date&&!isNaN(v))return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;const s=String(v).trim();const d=new Date(s);if(!isNaN(d))return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;if(/^\d{1,2}\/\d{1,2}\/\d{4}/.test(s)){const p=s.split(/[\/\s]/);return `${p[2]}-${String(p[0]).padStart(2,"0")}-${String(p[1]).padStart(2,"0")}`}return s.slice(0,10)}
+function col(row,names){const keys=Object.keys(row||{});for(const name of names){let hit=keys.find(k=>norm(k)===norm(name));if(hit)return hit}for(const name of names){let hit=keys.find(k=>compact(k)===compact(name));if(hit)return hit}for(const name of names){let hit=keys.find(k=>norm(k).includes(norm(name)));if(hit)return hit}return null}
+function parseCSV(file){return new Promise((resolve,reject)=>Papa.parse(file,{header:true,skipEmptyLines:true,complete:r=>resolve(r.data),error:reject}))}
+async function parseExcelBestSheet(file){const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:"array",cellDates:true});let best={score:-1,sheet:wb.SheetNames[0],headerIndex:0};for(const sheetName of wb.SheetNames){const ws=wb.Sheets[sheetName];const matrix=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});for(let i=0;i<Math.min(matrix.length,50);i++){const joined=matrix[i].map(x=>norm(x)).join("|");let score=0;if(joined.includes("patient name"))score+=5;if(joined.includes("visit date"))score+=5;if(joined.includes("admission id"))score+=4;if(joined.includes("contract"))score+=3;if(joined.includes("evv exception"))score+=3;if(joined.includes("invoice number"))score+=2;if(sheetName.toLowerCase().includes("detail"))score+=2;if(score>best.score)best={score,sheet:sheetName,headerIndex:i}}}const ws=wb.Sheets[best.sheet];const data=XLSX.utils.sheet_to_json(ws,{range:best.headerIndex,defval:""});data.__sheetName=best.sheet;data.__headerIndex=best.headerIndex+1;return data}
+function isSelectedMonth(dateStr){const d=new Date(dateStr+"T00:00:00");return d.getFullYear()===Number(reportYear.value)&&(d.getMonth()+1)===Number(reportMonth.value)}
+function productFromPlan(planRaw){const p=String(planRaw||"").toUpperCase();if(p.includes("MAP")||p.includes("MEDICAID ADVANTAGE PLUS"))return "MAP";if(p.includes("PARTIAL")||p.includes("MLTC")||p.includes("LTC"))return "MLTCP";return ""}
+async function runCalc(){try{if(typeof Papa==="undefined"||typeof XLSX==="undefined")throw new Error("Required browser libraries did not load.");const bf=billingFile.files[0],ef=evvFile.files[0],gf=eligFile.files[0];if(!bf||!ef||!gf)throw new Error("Upload all three files first.");document.getElementById("messages").innerHTML="<p class='good'>Reading files...</p>";const billing=await parseCSV(bf),evv=await parseExcelBestSheet(ef),elig=await parseCSV(gf);const b0=billing[0],e0=evv[0],g0=elig[0];const billName=col(b0,["Patient Name","Patient"]),billMedicaid=col(b0,["Medicaid Number","Medicaid ID"]),billDate=col(b0,["Visit Date"]),billAmt=col(b0,["Total Amount","Paid Amount"]),billAdm=col(b0,["Admission ID"]),billInv=col(b0,["Invoice Number"]);const eligName=col(g0,["Patient Name","Member Name","Client Name","Name"]),eligMedicaid=col(g0,["Medicaid Number","Medicaid ID"]),eligPlan=col(g0,["Insurance Plan Name 1","Plan Name","Insurance Plan Name","Payer Name","Benefit Plan","Contract Name"]);const evvName=col(e0,["Patient Name","Patient","Consumer Name","Member Name","Client Name","Name"]),evvDate=col(e0,["Visit Date","Date of Service","Service Date","Date"]),evvAdm=col(e0,["Admission ID"]),evvInv=col(e0,["Invoice Number"]),evvContract=col(e0,["Contract","Primary Bill To"]);const missing=[];if(!billName)missing.push("Billing Patient Name");if(!billDate)missing.push("Billing Visit Date");if(!billAmt)missing.push("Billing Total Amount");if(!eligPlan)missing.push("Eligibility Plan Name");if(!evvDate)missing.push("EVV Visit Date");if(!evvName&&!evvAdm)missing.push("EVV Patient Name or Admission ID");if(missing.length)throw new Error("Could not identify: "+missing.join(", ")+"\\nEVV columns found: "+Object.keys(e0).join(", "));const productByName={},productByMedicaid={};elig.forEach(r=>{const product=productFromPlan(r[eligPlan]);if(!product)return;if(eligName&&norm(r[eligName]))productByName[norm(r[eligName])]=product;if(eligMedicaid&&cleanId(r[eligMedicaid]))productByMedicaid[cleanId(r[eligMedicaid])]=product});const contractWanted=norm(contractName.value);const exByAdmDate=new Set(),exByNameDate=new Set(),exByInvDate=new Set();let evvRowsUsed=0,evvRowsSkippedContract=0;evv.forEach(r=>{if(evvContract&&contractWanted&&norm(r[evvContract])!==contractWanted){evvRowsSkippedContract++;return}const date=cleanDate(r[evvDate]);if(!date)return;const adm=evvAdm?cleanId(r[evvAdm]):"",name=evvName?norm(r[evvName]):"",inv=evvInv?cleanId(r[evvInv]):"";if(adm)exByAdmDate.add(adm+"|"+date);if(name)exByNameDate.add(name+"|"+date);if(inv)exByInvDate.add(inv+"|"+date);evvRowsUsed++});const totals={},unmatched=new Set(),badClaimKeys={},processed=[];function ensure(p){if(!totals[p])totals[p]={H:0,K:0,L:0,M:0,excludedClaimDollars:0}}let outsideMonth=0,billingRowsUsed=0;billing.forEach(r=>{const name=norm(r[billName]),date=cleanDate(r[billDate]);if(!name||!date)return;billingRowsUsed++;if(!isSelectedMonth(date))outsideMonth++;const med=billMedicaid?cleanId(r[billMedicaid]):"",adm=billAdm?cleanId(r[billAdm]):"",inv=billInv?cleanId(r[billInv]):"";let product=(med&&productByMedicaid[med])||productByName[name];if(!product){product="MLTCP";unmatched.add(r[billName]+(med?" ("+med+")":""))}const amount=Number(String(r[billAmt]||"0").replace(/[$,]/g,""))||0;const non=(adm&&exByAdmDate.has(adm+"|"+date))||(inv&&exByInvDate.has(inv+"|"+date))||exByNameDate.has(name+"|"+date);ensure(product);totals[product].H++;totals[product].L+=amount;if(non){totals[product].K++;if(inv)badClaimKeys[product+"|"+inv+"|"+date]=true}processed.push({product,date,inv,amount})});processed.forEach(v=>{if(v.inv&&badClaimKeys[v.product+"|"+v.inv+"|"+v.date])totals[v.product].excludedClaimDollars+=v.amount});Object.keys(totals).forEach(p=>totals[p].M=totals[p].L-totals[p].excludedClaimDollars);let rows="";Object.keys(totals).sort().forEach(p=>{const t=totals[p],I=t.H-t.K,J=t.H?I/t.H:0;rows+=`<tr><td>${p}</td><td>${evvType.value}</td><td>${t.H}</td><td>${I}</td><td>${(J*100).toFixed(2)}%</td><td>${t.K}</td><td>${money(t.L)}</td><td>${money(t.M)}</td></tr>`});document.getElementById("messages").innerHTML=`<div class="stats"><div class="stat"><b>${billingRowsUsed}</b><span>Billing rows</span></div><div class="stat"><b>${evvRowsUsed}</b><span>EVV exceptions used</span></div><div class="stat"><b>${evvRowsSkippedContract}</b><span>Other-contract EVV rows skipped</span></div><div class="stat"><b>${unmatched.size}</b><span>Unmatched patients</span></div></div><p class="${outsideMonth?'warn':'good'}">Billing rows outside selected month: ${outsideMonth}</p>${unmatched.size?`<p class="warn">Unmatched patients defaulted to MLTCP:</p><pre>${Array.from(unmatched).slice(0,100).join("\\n")}</pre>`:""}<p class="sub">EVV sheet used: ${evv.__sheetName}, header row ${evv.__headerIndex}. Product matching uses Medicaid number first, then patient name. Column M excludes full invoice/date claims touched by an exception.</p>`;document.getElementById("result").innerHTML=`<table><tr><th>Product</th><th>EVV Type</th><th>H Services</th><th>I Matching</th><th>J Rate</th><th>K Non-Compliant</th><th>L Total Dollars</th><th>M Matching Dollars</th></tr>${rows}</table>`}catch(err){document.getElementById("messages").innerHTML="<p class='err'>Error: "+err.message+"</p><pre>"+(err.stack||"")+"</pre>"}}
+generateBtn.addEventListener("click",runCalc);
 </script>
 </body>
 </html>
