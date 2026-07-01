@@ -3,30 +3,24 @@
 <head>
 <meta charset="utf-8">
 <title>EVV DOH Reporting Calculator</title>
-
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
 <style>
-body { font-family: Arial, sans-serif; max-width: 1150px; margin: 20px auto; padding: 20px; }
-h2 { margin-bottom: 6px; }
-.card { border: 1px solid #ddd; padding: 14px; border-radius: 8px; margin: 14px 0; }
-label { display: block; margin: 10px 0; }
-input, select { padding: 6px; margin-left: 6px; }
-button { padding: 10px 16px; cursor: pointer; }
-table { border-collapse: collapse; width: 100%; margin-top: 18px; }
-th, td { border: 1px solid #ccc; padding: 8px; text-align: right; }
-th:first-child, td:first-child { text-align: left; }
-.good { color: #0a7a0a; }
-.warn { color: #a15c00; }
-.err { color: #b00020; font-weight: bold; }
-pre { background: #f7f7f7; padding: 10px; overflow:auto; }
+body{font-family:Arial,sans-serif;max-width:1150px;margin:20px auto;padding:20px}
+.card{border:1px solid #ddd;padding:14px;border-radius:8px;margin:14px 0}
+label{display:block;margin:10px 0}
+input,select{padding:6px;margin-left:6px}
+button{padding:10px 16px;cursor:pointer}
+table{border-collapse:collapse;width:100%;margin-top:18px}
+th,td{border:1px solid #ccc;padding:8px;text-align:right}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+.good{color:#0a7a0a}.warn{color:#a15c00}.err{color:#b00020;font-weight:bold}
+pre{background:#f7f7f7;padding:10px;overflow:auto;white-space:pre-wrap}
 </style>
 </head>
-
 <body>
-<h2>EVV DOH Reporting Calculator</h2>
-<p>This is a browser-only prototype. Your files stay on your computer.</p>
+<h2>EVV DOH Reporting Calculator v4</h2>
+<p>Browser-only prototype. Your files stay on your computer.</p>
 
 <div class="card">
 <label>Contract Name <input id="contractName" value="Village Care Max"></label>
@@ -36,8 +30,7 @@ pre { background: #f7f7f7; padding: 10px; overflow:auto; }
 <option value="4" selected>April</option><option value="5">May</option><option value="6">June</option>
 <option value="7">July</option><option value="8">August</option><option value="9">September</option>
 <option value="10">October</option><option value="11">November</option><option value="12">December</option>
-</select>
-</label>
+</select></label>
 <label>Reporting Year <input id="reportYear" value="2026"></label>
 </div>
 
@@ -52,194 +45,164 @@ pre { background: #f7f7f7; padding: 10px; overflow:auto; }
 <div id="result"></div>
 
 <script>
-function showMessage(html) {
-  document.getElementById("messages").innerHTML = html;
+function norm(v){return String(v||"").trim().toLowerCase().replace(/\s+/g," ")}
+function compact(v){return norm(v).replace(/[^a-z0-9]/g,"")}
+function money(v){return Number(v||0).toLocaleString(undefined,{style:"currency",currency:"USD"})}
+function cleanDate(v){
+  if(v===null||v===undefined||v==="")return "";
+  if(typeof v==="number"){const d=XLSX.SSF.parse_date_code(v); if(!d)return ""; return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`}
+  if(v instanceof Date&&!isNaN(v))return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;
+  const s=String(v).trim(); const d=new Date(s);
+  if(!isNaN(d))return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){const [m,d,y]=s.split("/");return `${y}-${m}-${d}`}
+  return s.slice(0,10)
 }
-
-function norm(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
+function show(html){document.getElementById("messages").innerHTML=html}
+function col(row,names){
+  const keys=Object.keys(row||{})
+  for(const name of names){let hit=keys.find(k=>norm(k)===norm(name)); if(hit)return hit}
+  for(const name of names){let hit=keys.find(k=>compact(k)===compact(name)); if(hit)return hit}
+  for(const name of names){let hit=keys.find(k=>norm(k).includes(norm(name))); if(hit)return hit}
+  return null
 }
-
-function cleanDate(value) {
-  if (value === null || value === undefined || value === "") return "";
-  if (typeof value === "number") {
-    const d = XLSX.SSF.parse_date_code(value);
-    if (!d) return "";
-    return String(d.y).padStart(4,"0") + "-" + String(d.m).padStart(2,"0") + "-" + String(d.d).padStart(2,"0");
-  }
-  const s = String(value).trim();
-  const d = new Date(s);
-  if (!isNaN(d)) {
-    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
-  }
-  return s.substring(0, 10);
+function parseCSV(file){
+  return new Promise((resolve,reject)=>Papa.parse(file,{header:true,skipEmptyLines:true,complete:r=>resolve(r.data),error:reject}))
 }
-
-function money(value) {
-  return Number(value || 0).toLocaleString(undefined, { style: "currency", currency: "USD" });
-}
-
-function findColumn(row, possibleNames) {
-  const keys = Object.keys(row);
-  for (const wanted of possibleNames) {
-    const exact = keys.find(k => norm(k) === norm(wanted));
-    if (exact) return exact;
-  }
-  for (const wanted of possibleNames) {
-    const partial = keys.find(k => norm(k).includes(norm(wanted)));
-    if (partial) return partial;
-  }
-  return null;
-}
-
-function parseCSV(file) {
-  return new Promise((resolve, reject) => {
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: results => resolve(results.data),
-      error: err => reject(err)
-    });
-  });
-}
-
-async function parseExcel(file) {
-  const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(sheet, { defval: "" });
-}
-
-function assertLibrariesLoaded() {
-  if (typeof Papa === "undefined") {
-    throw new Error("PapaParse did not load. Your browser may be blocking the internet/CDN script.");
-  }
-  if (typeof XLSX === "undefined") {
-    throw new Error("SheetJS/XLSX did not load. Your browser may be blocking the internet/CDN script.");
-  }
-}
-
-async function runCalc() {
-  try {
-    showMessage("<p class='good'>Reading files...</p>");
-    assertLibrariesLoaded();
-
-    const billingInput = document.getElementById("billingFile");
-    const evvInput = document.getElementById("evvFile");
-    const eligInput = document.getElementById("eligFile");
-
-    if (!billingInput.files[0] || !evvInput.files[0] || !eligInput.files[0]) {
-      throw new Error("Please upload all three files before clicking Generate.");
+async function parseExcelBestSheet(file){
+  const buf=await file.arrayBuffer()
+  const wb=XLSX.read(buf,{type:"array",cellDates:true})
+  let best={score:-1,rows:null,sheet:"",headerIndex:0}
+  for(const sheetName of wb.SheetNames){
+    const ws=wb.Sheets[sheetName]
+    const matrix=XLSX.utils.sheet_to_json(ws,{header:1,defval:""})
+    for(let i=0;i<Math.min(matrix.length,50);i++){
+      const joined=matrix[i].map(x=>norm(x)).join("|")
+      let score=0
+      if(joined.includes("patient"))score+=3
+      if(joined.includes("visit date"))score+=3
+      if(joined.includes("admission id"))score+=2
+      if(joined.includes("contract"))score+=2
+      if(joined.includes("evv exception"))score+=2
+      if(joined.includes("invoice number"))score+=1
+      if(score>best.score)best={score,rows:matrix,sheet:sheetName,headerIndex:i}
     }
-
-    const billingRows = await parseCSV(billingInput.files[0]);
-    const evvRows = await parseExcel(evvInput.files[0]);
-    const eligibilityRows = await parseCSV(eligInput.files[0]);
-
-    if (!billingRows.length) throw new Error("Billing CSV appears empty.");
-    if (!evvRows.length) throw new Error("EVV Excel appears empty.");
-    if (!eligibilityRows.length) throw new Error("Eligibility CSV appears empty.");
-
-    const b0 = billingRows[0];
-    const e0 = evvRows[0];
-    const g0 = eligibilityRows[0];
-
-    const billNameCol = findColumn(b0, ["Patient Name", "Patient"]);
-    const billDateCol = findColumn(b0, ["Visit Date"]);
-    const billAmountCol = findColumn(b0, ["Total Amount", "Paid Amount"]);
-    const billInvoiceCol = findColumn(b0, ["Invoice Number"]);
-
-    const evvNameCol = findColumn(e0, ["Patient Name", "Patient", "Consumer Name"]);
-    const evvDateCol = findColumn(e0, ["Visit Date", "Date"]);
-
-    const eligNameCol = findColumn(g0, ["Patient Name", "Member Name", "Name"]);
-    const eligPlanCol = findColumn(g0, ["Plan Name", "Insurance Plan Name", "Payer Name"]);
-
-    const missing = [];
-    if (!billNameCol) missing.push("Billing: Patient Name");
-    if (!billDateCol) missing.push("Billing: Visit Date");
-    if (!billAmountCol) missing.push("Billing: Total Amount");
-    if (!evvNameCol) missing.push("EVV: Patient Name");
-    if (!evvDateCol) missing.push("EVV: Visit Date");
-    if (!eligNameCol) missing.push("Eligibility: Patient Name");
-    if (!eligPlanCol) missing.push("Eligibility: Plan Name");
-    if (missing.length) throw new Error("Could not identify these columns: " + missing.join(", "));
-
-    const productByPatient = {};
-    eligibilityRows.forEach(r => {
-      const name = norm(r[eligNameCol]);
-      const plan = String(r[eligPlanCol] || "").toUpperCase();
-      if (!name) return;
-      if (plan.includes("MAP")) productByPatient[name] = "MAP";
-      else if (plan.includes("PARTIAL") || plan.includes("MLTC") || plan.includes("LTC")) productByPatient[name] = "MLTCP";
-    });
-
-    const exceptionKeys = new Set();
-    evvRows.forEach(r => {
-      const name = norm(r[evvNameCol]);
-      const date = cleanDate(r[evvDateCol]);
-      if (name && date) exceptionKeys.add(name + "|" + date);
-    });
-
-    const totals = {};
-    const unmatchedPatients = new Set();
-
-    function ensure(product) {
-      if (!totals[product]) totals[product] = { H: 0, K: 0, L: 0, M: 0 };
-    }
-
-    billingRows.forEach(r => {
-      const name = norm(r[billNameCol]);
-      const date = cleanDate(r[billDateCol]);
-      if (!name || !date) return;
-
-      let product = productByPatient[name];
-      if (!product) {
-        product = "MLTCP";
-        unmatchedPatients.add(r[billNameCol]);
-      }
-
-      const amount = Number(String(r[billAmountCol] || "0").replace(/[$,]/g, "")) || 0;
-      const isNonCompliant = exceptionKeys.has(name + "|" + date);
-
-      ensure(product);
-      totals[product].H += 1;
-      totals[product].L += amount;
-      if (isNonCompliant) totals[product].K += 1;
-      else totals[product].M += amount;
-    });
-
-    let table = "<table><tr><th>Product</th><th>EVV Type</th><th>H Services</th><th>I Matching</th><th>J Rate</th><th>K Non-Compliant</th><th>L Total Dollars</th><th>M Matching Dollars</th></tr>";
-    Object.keys(totals).sort().forEach(product => {
-      const t = totals[product];
-      const I = t.H - t.K;
-      const J = t.H ? I / t.H : 0;
-      table += `<tr><td>${product}</td><td>PC</td><td>${t.H}</td><td>${I}</td><td>${(J*100).toFixed(2)}%</td><td>${t.K}</td><td>${money(t.L)}</td><td>${money(t.M)}</td></tr>`;
-    });
-    table += "</table>";
-
-    const messageHtml = `
-      <p class="good">Done.</p>
-      <p>Billing rows read: ${billingRows.length}</p>
-      <p>EVV exception rows read: ${evvRows.length}</p>
-      <p>Eligibility rows read: ${eligibilityRows.length}</p>
-      <p class="warn">Unmatched billing patients defaulted to MLTCP: ${unmatchedPatients.size}</p>
-      ${unmatchedPatients.size ? "<pre>" + Array.from(unmatchedPatients).slice(0,50).join("\\n") + "</pre>" : ""}
-      <p class="warn">Prototype note: this version matches exceptions by Patient Name + Visit Date. Final production version should use the strongest available keys and claim-level invoice/date exclusion for Column M.</p>
-    `;
-
-    showMessage(messageHtml);
-    document.getElementById("result").innerHTML = table;
-
-  } catch (err) {
-    showMessage("<p class='err'>Error: " + err.message + "</p><pre>" + (err.stack || "") + "</pre>");
   }
+  const ws=wb.Sheets[best.sheet]
+  const data=XLSX.utils.sheet_to_json(ws,{range:best.headerIndex,defval:""})
+  data.__sheetName=best.sheet
+  data.__headerIndex=best.headerIndex+1
+  return data
 }
+function periodOk(dateStr){
+  const d=new Date(dateStr+"T00:00:00")
+  const m=Number(document.getElementById("reportMonth").value)
+  const y=Number(document.getElementById("reportYear").value)
+  return d.getFullYear()===y && (d.getMonth()+1)===m
+}
+async function runCalc(){
+ try{
+  if(typeof Papa==="undefined"||typeof XLSX==="undefined")throw new Error("Required browser libraries did not load. Check internet/CDN access.")
+  const bf=billingFile.files[0], ef=evvFile.files[0], gf=eligFile.files[0]
+  if(!bf||!ef||!gf)throw new Error("Upload all three files first.")
+  show("<p class='good'>Reading files...</p>")
+  const billing=await parseCSV(bf)
+  const evv=await parseExcelBestSheet(ef)
+  const elig=await parseCSV(gf)
+  if(!billing.length||!evv.length||!elig.length)throw new Error("One uploaded file appears empty.")
 
-document.getElementById("generateBtn").addEventListener("click", runCalc);
+  const b0=billing[0], e0=evv[0], g0=elig[0]
+  const billName=col(b0,["Patient Name","Patient"])
+  const billDate=col(b0,["Visit Date"])
+  const billAmt=col(b0,["Total Amount","Paid Amount"])
+  const billAdm=col(b0,["Admission ID"])
+  const billInv=col(b0,["Invoice Number"])
+  const eligName=col(g0,["Patient Name","Member Name","Name"])
+  const eligPlan=col(g0,["Plan Name","Insurance Plan Name","Payer Name","Benefit Plan","Contract"])
+  const evvName=col(e0,["Patient Name","Patient","Consumer Name","Member Name","Client Name","Name"])
+  const evvDate=col(e0,["Visit Date","Date of Service","Service Date","Date"])
+  const evvAdm=col(e0,["Admission ID"])
+  const evvContract=col(e0,["Contract","Primary Bill To"])
+  const missing=[]
+  if(!billName)missing.push("Billing: Patient Name")
+  if(!billDate)missing.push("Billing: Visit Date")
+  if(!billAmt)missing.push("Billing: Total Amount")
+  if(!eligName)missing.push("Eligibility: Patient Name")
+  if(!eligPlan)missing.push("Eligibility: Plan Name")
+  if(!evvName)missing.push("EVV: Patient Name")
+  if(!evvDate)missing.push("EVV: Visit Date")
+  if(missing.length)throw new Error("Could not identify these columns: "+missing.join(", ")+"\n\nEVV sheet used: "+evv.__sheetName+", header row: "+evv.__headerIndex+"\nEVV columns found: "+Object.keys(e0).join(", "))
+
+  const contractWanted=norm(contractName.value)
+  const productByName={}, productByAdm={}
+  elig.forEach(r=>{
+    const name=norm(r[eligName])
+    const plan=String(r[eligPlan]||"").toUpperCase()
+    if(!name)return
+    productByName[name]=plan.includes("MAP") ? "MAP" : "MLTCP"
+  })
+
+  const exceptionsByNameDate=new Set()
+  const exceptionsByAdmDate=new Set()
+  let evvRowsUsed=0
+  evv.forEach(r=>{
+    if(evvContract && contractWanted && norm(r[evvContract])!==contractWanted)return
+    const name=norm(r[evvName])
+    const date=cleanDate(r[evvDate])
+    const adm=evvAdm ? norm(r[evvAdm]) : ""
+    if(name&&date){exceptionsByNameDate.add(name+"|"+date); evvRowsUsed++}
+    if(adm&&date)exceptionsByAdmDate.add(adm+"|"+date)
+  })
+
+  const totals={}, unmatched=new Set(), badInvoiceDate={}
+  function ensure(p){if(!totals[p])totals[p]={H:0,K:0,L:0,M:0,excludedClaimDollars:0}}
+  const billingProcessed=[]
+  let outsideMonth=0
+  billing.forEach(r=>{
+    const name=norm(r[billName]), date=cleanDate(r[billDate])
+    if(!name||!date)return
+    if(!periodOk(date))outsideMonth++
+    const adm=billAdm ? norm(r[billAdm]) : ""
+    let product=productByName[name]
+    if(!product){product="MLTCP"; unmatched.add(r[billName])}
+    const amount=Number(String(r[billAmt]||"0").replace(/[$,]/g,""))||0
+    const non=exceptionsByNameDate.has(name+"|"+date) || (adm && exceptionsByAdmDate.has(adm+"|"+date))
+    const inv=billInv ? String(r[billInv]||"").trim() : ""
+    const claimKey=product+"|"+inv+"|"+date
+    ensure(product)
+    totals[product].H++
+    totals[product].L+=amount
+    if(non){totals[product].K++; if(inv)badInvoiceDate[claimKey]=true}
+    billingProcessed.push({product,date,inv,amount,non})
+  })
+
+  billingProcessed.forEach(v=>{
+    const claimKey=v.product+"|"+v.inv+"|"+v.date
+    if(v.inv && badInvoiceDate[claimKey]) totals[v.product].excludedClaimDollars += v.amount
+  })
+  Object.keys(totals).forEach(p=>{totals[p].M=totals[p].L-totals[p].excludedClaimDollars})
+
+  let table="<table><tr><th>Product</th><th>EVV Type</th><th>H Services</th><th>I Matching</th><th>J Rate</th><th>K Non-Compliant</th><th>L Total Dollars</th><th>M Matching Dollars</th></tr>"
+  Object.keys(totals).sort().forEach(p=>{
+    const t=totals[p], I=t.H-t.K, J=t.H?I/t.H:0
+    table+=`<tr><td>${p}</td><td>PC</td><td>${t.H}</td><td>${I}</td><td>${(J*100).toFixed(2)}%</td><td>${t.K}</td><td>${money(t.L)}</td><td>${money(t.M)}</td></tr>`
+  })
+  table+="</table>"
+
+  show(`<p class="good">Done.</p>
+        <p>Billing rows read: ${billing.length}</p>
+        <p>EVV sheet used: ${evv.__sheetName}, header row ${evv.__headerIndex}</p>
+        <p>EVV exception rows used for this contract: ${evvRowsUsed}</p>
+        <p>Eligibility rows read: ${elig.length}</p>
+        <p class="${outsideMonth?'warn':'good'}">Billing rows outside selected month: ${outsideMonth}</p>
+        <p class="warn">Unmatched billing patients defaulted to MLTCP: ${unmatched.size}</p>
+        ${unmatched.size ? "<pre>"+Array.from(unmatched).slice(0,80).join("\\n")+"</pre>" : ""}
+        <p class="warn">Prototype note: Column M uses invoice number + visit date claim-level exclusion when invoice number is available.</p>`)
+  result.innerHTML=table
+ }catch(err){
+  show("<p class='err'>Error: "+err.message+"</p><pre>"+(err.stack||"")+"</pre>")
+ }
+}
+generateBtn.addEventListener("click",runCalc)
 </script>
 </body>
 </html>
