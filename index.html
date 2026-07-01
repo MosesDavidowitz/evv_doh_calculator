@@ -32,7 +32,7 @@ table{border-collapse:separate;border-spacing:0;width:max-content;min-width:820p
 th{background:#0f172a;color:white;text-align:left;padding:11px;font-size:12px;vertical-align:bottom;white-space:normal}td{border-top:1px solid var(--line);padding:10px;text-align:left;font-size:13px;white-space:nowrap}.num{text-align:right}
 pre{background:#0f172a;color:#e5e7eb;border-radius:14px;padding:12px;white-space:pre-wrap;overflow:auto;font-size:12px;max-width:100%;word-break:break-word;overflow-wrap:anywhere}
 .errbox{max-width:100%;overflow:hidden}.errbox pre{max-height:260px}.footer{color:var(--muted);text-align:center;font-size:13px;margin:22px 0 0}
-.modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}.modalbox{background:white;border-radius:22px;max-width:560px;width:100%;padding:22px;box-shadow:0 30px 70px rgba(0,0,0,.25)}.modalbox h3{margin:0 0 10px}.modalbox p{color:var(--muted);line-height:1.45}.close{float:right;border:0;background:#f1f5f9;border-radius:10px;padding:8px 10px;cursor:pointer}
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}.modalbox{background:white;border-radius:22px;max-width:560px;width:100%;padding:22px;box-shadow:0 30px 70px rgba(0,0,0,.25)}.modalbox h3{margin:0 0 10px}.modalbox p{color:var(--muted);line-height:1.45}.modalbox a{color:#1d4ed8;font-weight:700}.close{float:right;border:0;background:#f1f5f9;border-radius:10px;padding:8px 10px;cursor:pointer}
 @media(max-width:900px){.grid,.formgrid,.stats{grid-template-columns:1fr}.wrap{padding:14px}.hero{padding:22px}.hero h1{font-size:24px}.hero p{font-size:15px}}
 </style>
 </head>
@@ -69,11 +69,11 @@ pre{background:#0f172a;color:#e5e7eb;border-radius:14px;padding:12px;white-space
 const helpText={
 contract:["Contract Name in HHAx","Use the payer contract name as it appears in HHAeXchange. This filters EVV exceptions to the correct contract."],
 evvtype:["EVV Service Type","Column G. For LHCSA personal care, use PC. CHHA uses HHC. CDPAP uses CDPAS."],
-billing:["Billing Visits CSV","This report should already be created before using this tool. In HHAeXchange, it comes from Reports → Reporting Tool 2.0 using Billing Visits. It should be filtered to the reporting month, payer/contract, and Paid = Yes."],
-exceptions:["EVV Compliance Detail Excel","This comes from Reports → EVV Compliance Reports → EVV Compliance Detail Report. Use the same month and payer/contract as the Billing Visits report. This file lists EVV exception visits only."],
-eligibility:["Eligibility CSV","This file is used only to determine the product, such as MLTCP or MAP. Matching uses Medicaid number first, then patient name."]
+billing:["Billing Visits CSV","This is Phase 1 from the HHAeXchange DOH Reporting Guide. The report should be created first in Reports → Reporting Tool 2.0 using Data Source Category: Billing and Data Source: Billing Visits. Once created, run it for the reporting month with the payer/contract filter and Paid = Yes, then export to CSV.<br><br><a href=\"https://info.hhaexchange.com/hubfs/DOH_Reporting_CustomerGuide_Updated.pdf\" target=\"_blank\" rel=\"noopener\">Click here for the HHAeXchange guide</a>."],
+exceptions:["EVV Compliance Detail Excel","This is Phase 2 from the HHAeXchange DOH Reporting Guide. Go to Reports → EVV Compliance Reports → EVV Compliance Detail Report. Use the same reporting month and the same payer/contract filter as the Billing Visits report, then export/print to Excel. This file lists exception visits only.<br><br><a href=\"https://info.hhaexchange.com/hubfs/DOH_Reporting_CustomerGuide_Updated.pdf\" target=\"_blank\" rel=\"noopener\">Click here for the HHAeXchange guide</a>."],
+eligibility:["Eligibility CSV","This file is used to identify the managed care product, such as MLTCP or MAP, when one contract includes more than one product line. The calculator matches by Medicaid number first, then patient name."]
 };
-document.querySelectorAll(".help").forEach(b=>b.addEventListener("click",e=>{e.preventDefault();const h=helpText[b.dataset.help];modalTitle.textContent=h[0];modalText.textContent=h[1];modal.style.display="flex"}));
+document.querySelectorAll(".help").forEach(b=>b.addEventListener("click",e=>{e.preventDefault();const h=helpText[b.dataset.help];modalTitle.textContent=h[0];modalText.innerHTML=h[1];modal.style.display="flex"}));
 function closeModal(){modal.style.display="none"}
 function openInfoModal(){
   modalTitle.textContent = "About This EVV Reporting Requirement";
