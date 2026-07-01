@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EVV DOH Reporting Calculator</title>
+
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+body { font-family: Arial, sans-serif; max-width: 1150px; margin: 20px auto; padding: 20px; }
+h2 { margin-bottom: 6px; }
+.card { border: 1px solid #ddd; padding: 14px; border-radius: 8px; margin: 14px 0; }
+label { display: block; margin: 10px 0; }
+input, select { padding: 6px; margin-left: 6px; }
+button { padding: 10px 16px; cursor: pointer; }
+table { border-collapse: collapse; width: 100%; margin-top: 18px; }
+th, td { border: 1px solid #ccc; padding: 8px; text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+.good { color: #0a7a0a; }
+.warn { color: #a15c00; }
+.err { color: #b00020; font-weight: bold; }
+pre { background: #f7f7f7; padding: 10px; overflow:auto; }
+</style>
+</head>
+
+<body>
+<h2>EVV DOH Reporting Calculator</h2>
+<p>This is a browser-only prototype. Your files stay on your computer.</p>
+
+<div class="card">
+<label>Contract Name <input id="contractName" value="Village Care Max"></label>
+<label>Reporting Month
+<select id="reportMonth">
+<option value="1">January</option><option value="2">February</option><option value="3">March</option>
+<option value="4" selected>April</option><option value="5">May</option><option value="6">June</option>
+<option value="7">July</option><option value="8">August</option><option value="9">September</option>
+<option value="10">October</option><option value="11">November</option><option value="12">December</option>
+</select>
+</label>
+<label>Reporting Year <input id="reportYear" value="2026"></label>
+</div>
+
+<div class="card">
+<label>1. Billing Visits CSV <input type="file" id="billingFile" accept=".csv"></label>
+<label>2. EVV Compliance Detail Excel <input type="file" id="evvFile" accept=".xlsx,.xls"></label>
+<label>3. Eligibility CSV <input type="file" id="eligFile" accept=".csv"></label>
+<button id="generateBtn" type="button">Generate DOH Numbers</button>
+</div>
+
+<div id="messages"></div>
+<div id="result"></div>
+
+<script>
+function showMessage(html) {
+  document.getElementById("messages").innerHTML = html;
+}
+
+function norm(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function cleanDate(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number") {
+    const d = XLSX.SSF.parse_date_code(value);
+    if (!d) return "";
+    return String(d.y).padStart(4,"0") + "-" + String(d.m).padStart(2,"0") + "-" + String(d.d).padStart(2,"0");
+  }
+  const s = String(value).trim();
+  const d = new Date(s);
+  if (!isNaN(d)) {
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  return s.substring(0, 10);
+}
+
+function money(value) {
+  return Number(value || 0).toLocaleString(undefined, { style: "currency", currency: "USD" });
+}
+
+function findColumn(row, possibleNames) {
+  const keys = Object.keys(row);
+  for (const wanted of possibleNames) {
+    const exact = keys.find(k => norm(k) === norm(wanted));
+    if (exact) return exact;
+  }
+  for (const wanted of possibleNames) {
+    const partial = keys.find(k => norm(k).includes(norm(wanted)));
+    if (partial) return partial;
+  }
+  return null;
+}
+
+function parseCSV(file) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: results => resolve(results.data),
+      error: err => reject(err)
+    });
+  });
+}
+
+async function parseExcel(file) {
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(sheet, { defval: "" });
+}
+
+function assertLibrariesLoaded() {
+  if (typeof Papa === "undefined") {
+    throw new Error("PapaParse did not load. Your browser may be blocking the internet/CDN script.");
+  }
+  if (typeof XLSX === "undefined") {
+    throw new Error("SheetJS/XLSX did not load. Your browser may be blocking the internet/CDN script.");
+  }
+}
+
+async function runCalc() {
+  try {
+    showMessage("<p class='good'>Reading files...</p>");
+    assertLibrariesLoaded();
+
+    const billingInput = document.getElementById("billingFile");
+    const evvInput = document.getElementById("evvFile");
+    const eligInput = document.getElementById("eligFile");
+
+    if (!billingInput.files[0] || !evvInput.files[0] || !eligInput.files[0]) {
+      throw new Error("Please upload all three files before clicking Generate.");
+    }
+
+    const billingRows = await parseCSV(billingInput.files[0]);
+    const evvRows = await parseExcel(evvInput.files[0]);
+    const eligibilityRows = await parseCSV(eligInput.files[0]);
+
+    if (!billingRows.length) throw new Error("Billing CSV appears empty.");
+    if (!evvRows.length) throw new Error("EVV Excel appears empty.");
+    if (!eligibilityRows.length) throw new Error("Eligibility CSV appears empty.");
+
+    const b0 = billingRows[0];
+    const e0 = evvRows[0];
+    const g0 = eligibilityRows[0];
+
+    const billNameCol = findColumn(b0, ["Patient Name", "Patient"]);
+    const billDateCol = findColumn(b0, ["Visit Date"]);
+    const billAmountCol = findColumn(b0, ["Total Amount", "Paid Amount"]);
+    const billInvoiceCol = findColumn(b0, ["Invoice Number"]);
+
+    const evvNameCol = findColumn(e0, ["Patient Name", "Patient", "Consumer Name"]);
+    const evvDateCol = findColumn(e0, ["Visit Date", "Date"]);
+
+    const eligNameCol = findColumn(g0, ["Patient Name", "Member Name", "Name"]);
+    const eligPlanCol = findColumn(g0, ["Plan Name", "Insurance Plan Name", "Payer Name"]);
+
+    const missing = [];
+    if (!billNameCol) missing.push("Billing: Patient Name");
+    if (!billDateCol) missing.push("Billing: Visit Date");
+    if (!billAmountCol) missing.push("Billing: Total Amount");
+    if (!evvNameCol) missing.push("EVV: Patient Name");
+    if (!evvDateCol) missing.push("EVV: Visit Date");
+    if (!eligNameCol) missing.push("Eligibility: Patient Name");
+    if (!eligPlanCol) missing.push("Eligibility: Plan Name");
+    if (missing.length) throw new Error("Could not identify these columns: " + missing.join(", "));
+
+    const productByPatient = {};
+    eligibilityRows.forEach(r => {
+      const name = norm(r[eligNameCol]);
+      const plan = String(r[eligPlanCol] || "").toUpperCase();
+      if (!name) return;
+      if (plan.includes("MAP")) productByPatient[name] = "MAP";
+      else if (plan.includes("PARTIAL") || plan.includes("MLTC") || plan.includes("LTC")) productByPatient[name] = "MLTCP";
+    });
+
+    const exceptionKeys = new Set();
+    evvRows.forEach(r => {
+      const name = norm(r[evvNameCol]);
+      const date = cleanDate(r[evvDateCol]);
+      if (name && date) exceptionKeys.add(name + "|" + date);
+    });
+
+    const totals = {};
+    const unmatchedPatients = new Set();
+
+    function ensure(product) {
+      if (!totals[product]) totals[product] = { H: 0, K: 0, L: 0, M: 0 };
+    }
+
+    billingRows.forEach(r => {
+      const name = norm(r[billNameCol]);
+      const date = cleanDate(r[billDateCol]);
+      if (!name || !date) return;
+
+      let product = productByPatient[name];
+      if (!product) {
+        product = "MLTCP";
+        unmatchedPatients.add(r[billNameCol]);
+      }
+
+      const amount = Number(String(r[billAmountCol] || "0").replace(/[$,]/g, "")) || 0;
+      const isNonCompliant = exceptionKeys.has(name + "|" + date);
+
+      ensure(product);
+      totals[product].H += 1;
+      totals[product].L += amount;
+      if (isNonCompliant) totals[product].K += 1;
+      else totals[product].M += amount;
+    });
+
+    let table = "<table><tr><th>Product</th><th>EVV Type</th><th>H Services</th><th>I Matching</th><th>J Rate</th><th>K Non-Compliant</th><th>L Total Dollars</th><th>M Matching Dollars</th></tr>";
+    Object.keys(totals).sort().forEach(product => {
+      const t = totals[product];
+      const I = t.H - t.K;
+      const J = t.H ? I / t.H : 0;
+      table += `<tr><td>${product}</td><td>PC</td><td>${t.H}</td><td>${I}</td><td>${(J*100).toFixed(2)}%</td><td>${t.K}</td><td>${money(t.L)}</td><td>${money(t.M)}</td></tr>`;
+    });
+    table += "</table>";
+
+    const messageHtml = `
+      <p class="good">Done.</p>
+      <p>Billing rows read: ${billingRows.length}</p>
+      <p>EVV exception rows read: ${evvRows.length}</p>
+      <p>Eligibility rows read: ${eligibilityRows.length}</p>
+      <p class="warn">Unmatched billing patients defaulted to MLTCP: ${unmatchedPatients.size}</p>
+      ${unmatchedPatients.size ? "<pre>" + Array.from(unmatchedPatients).slice(0,50).join("\\n") + "</pre>" : ""}
+      <p class="warn">Prototype note: this version matches exceptions by Patient Name + Visit Date. Final production version should use the strongest available keys and claim-level invoice/date exclusion for Column M.</p>
+    `;
+
+    showMessage(messageHtml);
+    document.getElementById("result").innerHTML = table;
+
+  } catch (err) {
+    showMessage("<p class='err'>Error: " + err.message + "</p><pre>" + (err.stack || "") + "</pre>");
+  }
+}
+
+document.getElementById("generateBtn").addEventListener("click", runCalc);
+</script>
+</body>
+</html>
