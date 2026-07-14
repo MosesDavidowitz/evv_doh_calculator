@@ -34,9 +34,33 @@ pre{background:#0f172a;color:#e5e7eb;border-radius:14px;padding:12px;white-space
 .errbox{max-width:100%;overflow:hidden}.errbox pre{max-height:260px}.footer{color:var(--muted);text-align:center;font-size:13px;margin:22px 0 0;line-height:1.55}.footer a.contact-link{color:#64748b;text-decoration:underline;text-decoration-color:#cbd5e1;text-underline-offset:3px;font-weight:600}.footer a.contact-link:hover{color:#475569;text-decoration-color:#94a3b8}.footer .project-line{display:inline-block;margin-top:6px;font-size:11px;color:#94a3b8}
 .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}.modalbox{background:white;border-radius:22px;max-width:560px;width:100%;padding:22px;box-shadow:0 30px 70px rgba(0,0,0,.25)}.modalbox h3{margin:0 0 10px}.modalbox p{color:var(--muted);line-height:1.45}.modalbox a{color:#1d4ed8;font-weight:700}.close{float:right;border:0;background:#f1f5f9;border-radius:10px;padding:8px 10px;cursor:pointer}
 @media(max-width:900px){.grid,.formgrid,.stats{grid-template-columns:1fr}.wrap{padding:14px}.hero{padding:22px}.hero h1{font-size:24px}.hero p{font-size:15px}}
+
+.accessGate{position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#eef4ff,#f8fafc 45%,#eefdf8);display:flex;align-items:center;justify-content:center;padding:20px}
+.accessCard{width:min(420px,100%);background:#fff;border:1px solid #dfe5ef;border-radius:22px;box-shadow:0 24px 60px rgba(15,23,42,.16);padding:26px;text-align:center}
+.accessLogo{width:56px;height:56px;margin:0 auto 14px;border-radius:16px;background:linear-gradient(135deg,#0f3b8f,#0f766e);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px}
+.accessCard h2{margin:0 0 8px;font-size:24px}
+.accessCard p{margin:0 0 18px;color:#637083;line-height:1.45}
+.accessCard input{font-size:18px;text-align:center;letter-spacing:4px;margin-bottom:12px}
+.accessCard button{width:100%;border:0;background:linear-gradient(135deg,#1d4ed8,#0f766e);color:#fff;border-radius:12px;padding:12px 16px;font-weight:800;cursor:pointer}
+.accessError{min-height:22px;margin-top:10px;color:#b91c1c;font-size:13px}
+.lockedText{color:#b91c1c!important;font-weight:700}
+body.gated .wrap{display:none}
+
 </style>
 </head>
-<body>
+<body class="gated">
+
+<div id="accessGate" class="accessGate">
+  <div class="accessCard">
+    <div class="accessLogo">EVV</div>
+    <h2>Access Required</h2>
+    <p id="accessMessage">Enter the access PIN to open the DOH EVV Compliance Reporting Tool.</p>
+    <input id="accessPin" type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="PIN">
+    <button id="accessButton" type="button">Continue</button>
+    <div id="accessError" class="accessError"></div>
+  </div>
+</div>
+
 <div class="wrap">
 <section class="hero">
   <div class="heroContent">
@@ -54,7 +78,58 @@ pre{background:#0f172a;color:#e5e7eb;border-radius:14px;padding:12px;white-space
 <div class="field"><label>Contract Name in HHAx <button class="help" data-help="contract">?</button></label><input id="contractName" placeholder="Village Care Max"></div>
 <div class="field"><label>Column G · EVV Service Type <button class="help" data-help="evvtype">?</button></label><select id="evvType"><option>PC</option><option>HHC</option><option>CDPAS</option></select></div>
 <div class="field"><label>Reporting Month</label><select id="reportMonth"><option value="1">January</option><option value="2">February</option><option value="3">March</option><option value="4">April</option><option value="5">May</option><option value="6">June</option><option value="7">July</option><option value="8">August</option><option value="9">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option></select></div>
-<div class="field"><label>Reporting Year</label><select id="reportYear"></select><script>document.addEventListener("DOMContentLoaded",()=>{const y=new Date().getFullYear();const s=document.getElementById("reportYear");if(s&&!s.options.length){[y,y-1].forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;s.appendChild(o);});}});</script></div>
+<div class="field"><label>Reporting Year</label><select id="reportYear"></select><script>
+
+// Access settings for this static page.
+// Change ACCESS_PIN before publishing if you want a different code.
+// Set PAGE_LOCKED to true to block everyone without removing the page.
+const ACCESS_PIN = "2026";
+const PAGE_LOCKED = false;
+const ACCESS_SESSION_KEY = "evv_tool_access_v29";
+
+function unlockTool(){
+  document.body.classList.remove("gated");
+  document.getElementById("accessGate").style.display = "none";
+}
+function initializeAccessGate(){
+  const pinInput = document.getElementById("accessPin");
+  const button = document.getElementById("accessButton");
+  const error = document.getElementById("accessError");
+  const message = document.getElementById("accessMessage");
+
+  if(PAGE_LOCKED){
+    message.textContent = "This tool is currently locked. Please contact support for access.";
+    message.classList.add("lockedText");
+    pinInput.style.display = "none";
+    button.style.display = "none";
+    return;
+  }
+
+  if(sessionStorage.getItem(ACCESS_SESSION_KEY) === "granted"){
+    unlockTool();
+    return;
+  }
+
+  function checkPin(){
+    if(pinInput.value === ACCESS_PIN){
+      sessionStorage.setItem(ACCESS_SESSION_KEY,"granted");
+      error.textContent = "";
+      unlockTool();
+    }else{
+      error.textContent = "Incorrect PIN. Please try again.";
+      pinInput.value = "";
+      pinInput.focus();
+    }
+  }
+
+  button.addEventListener("click",checkPin);
+  pinInput.addEventListener("keydown",e=>{
+    if(e.key === "Enter") checkPin();
+  });
+  setTimeout(()=>pinInput.focus(),100);
+}
+document.addEventListener("DOMContentLoaded", initializeAccessGate);
+document.addEventListener("DOMContentLoaded",()=>{const y=new Date().getFullYear();const s=document.getElementById("reportYear");if(s&&!s.options.length){[y,y-1].forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;s.appendChild(o);});}});</script></div>
 </div></div>
 <div class="card"><h2>Upload Source Files</h2><p class="sub">All three files should be for the same payer and reporting month.</p>
 <div class="filebox"><div class="filetop"><div class="filetitle">1. Billing Visits CSV</div><button class="help" data-help="billing">?</button></div><div class="filedesc">Upload the paid Billing Visits CSV for the selected month.</div><input type="file" id="billingFile" accept=".csv"></div>
@@ -63,7 +138,7 @@ pre{background:#0f172a;color:#e5e7eb;border-radius:14px;padding:12px;white-space
 <button class="primary" id="generateBtn" type="button">Generate Submission Rows</button></div>
 <div class="card"><h2>Validation Summary</h2><div id="messages"><p class="sub">Upload the files and click Generate.</p></div></div>
 <div class="card full"><h2>DOH Submission Rows</h2><p class="sub">Upload the files and click Generate to see the results.</p><div id="result"></div></div>
-</div><p class="footer">Questions about this tool? <a class="contact-link" href="mailto:Moses@BenevolentHomeCare.com?subject=EVV%20Compliance%20Reporting%20Tool%20Support">Click here</a><br><span class="project-line">A Davidowitz Project &copy; 2026 · v28</span></p></div>
+</div><p class="footer">Questions about this tool? <a class="contact-link" href="mailto:Moses@BenevolentHomeCare.com?subject=EVV%20Compliance%20Reporting%20Tool%20Support">Click here</a><br><span class="project-line">A Davidowitz Project &copy; 2026 · v29</span></p></div>
 <div class="modal" id="modal"><div class="modalbox"><button class="close" onclick="closeModal()">Close</button><h3 id="modalTitle"></h3><p id="modalText"></p></div></div>
 <script>
 const helpText={
